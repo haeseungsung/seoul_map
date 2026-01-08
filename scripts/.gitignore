@@ -1,0 +1,14 @@
+# Output directories
+out/
+catalog_data/
+test_output/
+*.csv
+*.jsonl
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
