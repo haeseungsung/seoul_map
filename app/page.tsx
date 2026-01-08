@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import MapContainer from '@/components/MapContainer';
-import { testPopulationAPI, loadPopulationFromCSV } from '@/api/seoul-data';
+import { loadPopulationFromCSV } from '@/api/seoul-data';
 import { parsePopulationCSV } from '@/utils/csv-parser';
 
 export type IndicatorType =
@@ -22,13 +22,37 @@ export default function Home() {
     setSelectedDistrict(properties);
   };
 
-  // API 테스트 함수 (현재 작동하지 않음)
+  // API 테스트 함수 - Next.js API Route 프록시 사용
   const handleTestAPI = async () => {
     try {
-      console.log('🧪 API 테스트 시작...');
-      await testPopulationAPI();
+      console.log('🧪 서울 OpenAPI 연결 테스트 시작...');
+
+      // Next.js API Route를 통해 서버 사이드에서 호출 (CORS 우회)
+      const response = await fetch('/api/seoul-test');
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        console.log('✅ API 연결 성공!');
+        console.log('📦 응답 데이터:', result.data);
+
+        if (result.data.SearchCatalogService) {
+          const service = result.data.SearchCatalogService;
+          console.log(`✅ 서울시 OpenAPI 카탈로그 조회 성공`);
+          console.log(`- 전체 서비스 수: ${service.list_total_count?.toLocaleString()}개`);
+          console.log(`- 조회된 서비스: ${service.row?.length}개`);
+          alert(`API 연결 성공!\n전체 서비스: ${service.list_total_count?.toLocaleString()}개`);
+        }
+      } else {
+        throw new Error(result.error || '알 수 없는 에러');
+      }
     } catch (error) {
-      console.error('API 테스트 실패:', error);
+      console.error('❌ API 테스트 실패:', error);
+      alert(`API 테스트 실패:\n${error instanceof Error ? error.message : String(error)}`);
     }
   };
 

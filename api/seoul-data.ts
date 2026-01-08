@@ -190,30 +190,43 @@ export function getPopulationByGeoJSONCode(
 
 /**
  * 샘플 데이터로 테스트 (개발용)
+ * 참고: 기존 ppsOrgnCt API는 데이터가 없어서 SearchCatalogService로 테스트
  */
 export async function testPopulationAPI() {
   try {
-    console.log('🧪 API 테스트 시작...');
+    console.log('🧪 서울 OpenAPI 연결 테스트 시작...');
 
-    // 소량의 데이터로 테스트
-    const data = await fetchPopulationData('20240102', 1, 100);
+    // SearchCatalogService로 API 연결 테스트 (실제 작동하는 API)
+    const testUrl = `${BASE_URL}/${API_KEY}/json/SearchCatalogService/1/5/`;
+    console.log('📡 테스트 URL:', testUrl);
 
-    console.log('테스트 결과:');
-    console.log('- 총 데이터 수:', data.ppsOrgnCt.list_total_count);
-    console.log('- 가져온 행 수:', data.ppsOrgnCt.row?.length || 0);
+    const response = await fetch(testUrl);
 
-    if (data.ppsOrgnCt.row && data.ppsOrgnCt.row.length > 0) {
-      console.log('- 첫 번째 행:', data.ppsOrgnCt.row[0]);
+    if (!response.ok) {
+      throw new Error(`HTTP 에러: ${response.status} ${response.statusText}`);
+    }
 
-      // 집계 테스트
-      const aggregated = aggregatePopulationByDistrict(data.ppsOrgnCt.row);
-      console.log('- 집계된 행정동 수:', Object.keys(aggregated).length);
-      console.log('- 샘플 데이터:', Object.entries(aggregated).slice(0, 3));
+    const data = await response.json();
+
+    console.log('✅ API 연결 성공!');
+    console.log('📦 응답 데이터:', data);
+
+    if (data.SearchCatalogService) {
+      const totalCount = data.SearchCatalogService.list_total_count;
+      const rows = data.SearchCatalogService.row || [];
+      console.log(`✅ 서울시 OpenAPI 카탈로그 조회 성공`);
+      console.log(`- 전체 서비스 수: ${totalCount?.toLocaleString()}개`);
+      console.log(`- 조회된 서비스: ${rows.length}개`);
+      console.log('- 샘플 서비스:', rows.slice(0, 3).map((r: any) => ({
+        id: r.INF_ID,
+        name: r.INF_NM
+      })));
     }
 
     return data;
   } catch (error) {
-    console.error('테스트 실패:', error);
+    console.error('❌ API 테스트 실패:', error);
+    console.error('상세:', error instanceof Error ? error.message : String(error));
     throw error;
   }
 }
