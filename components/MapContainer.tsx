@@ -29,13 +29,16 @@ const outlineLayer: LayerProps = {
 
 interface MapContainerProps {
   onDistrictClick?: (properties: any) => void;
-  selectedIndicator: IndicatorType;
+  selectedIndicator: IndicatorType | string; // IndicatorType 또는 메타 카탈로그 indicator_id
+  onGeojsonLoad?: (geojson: any) => void; // enriched geojson 전달
+  viewMode?: 'dong' | 'gu'; // 뷰 모드 (행정동 vs 구)
+  guGeojsonData?: any; // 구 GeoJSON (지표 데이터 병합됨)
 }
 
 /**
  * 지표별 색상 범위 설정
  */
-const getIndicatorConfig = (indicator: IndicatorType) => {
+const getIndicatorConfig = (indicator: IndicatorType | string) => {
   switch (indicator) {
     case 'population':
       return {
@@ -133,12 +136,35 @@ const getIndicatorConfig = (indicator: IndicatorType) => {
           [55, '#f472b6'],
         ],
       };
+    default:
+      // 메타 카탈로그 기반 custom 지표 처리
+      // indicator_id를 property로 사용하고, 동적 색상 범위 설정
+      return {
+        property: indicator,
+        label: indicator,
+        unit: '개',
+        stops: [
+          [0, '#e0e0e0'],
+          [100, '#eff6ff'],
+          [500, '#dbeafe'],
+          [1000, '#bfdbfe'],
+          [2000, '#93c5fd'],
+          [3000, '#60a5fa'],
+          [4000, '#3b82f6'],
+          [5000, '#2563eb'],
+          [7500, '#1d4ed8'],
+          [10000, '#1e40af'],
+        ],
+      };
   }
 };
 
 export default function MapContainer({
   onDistrictClick,
   selectedIndicator,
+  onGeojsonLoad,
+  viewMode = 'dong',
+  guGeojsonData: externalGuGeojsonData,
 }: MapContainerProps) {
   const mapRef = useRef<MapRef>(null);
   const [geojsonData, setGeojsonData] = useState<any>(null);
@@ -151,7 +177,7 @@ export default function MapContainer({
       try {
         setIsLoading(true);
 
-        // GeoJSON 로드
+        // 행정동 GeoJSON 로드
         const geojsonResponse = await fetch('/data/seoul-hangjeongdong.geojson');
         if (!geojsonResponse.ok) {
           throw new Error('GeoJSON 로드 실패');
@@ -171,9 +197,11 @@ export default function MapContainer({
         const enrichedGeojson = {
           ...geojson,
           features: geojson.features.map((feature: any) => {
-            // adm_nm: "서울특별시 종로구 사직동" → "사직동" 추출
+            // adm_nm: "서울특별시 종로구 사직동" → 구 이름과 동 이름 추출
             const fullName = feature.properties?.adm_nm || '';
-            const dongName = fullName.split(' ').pop() || ''; // 마지막 부분 (동 이름)
+            const parts = fullName.split(' ');
+            const guName = parts[1] || ''; // "종로구"
+            const dongName = parts[2] || ''; // "사직동"
 
             const popData = population.find((p) => p.dong === dongName);
 
@@ -189,6 +217,7 @@ export default function MapContainer({
               ...feature,
               properties: {
                 ...feature.properties,
+                gu_name: guName, // 구 이름 추가 (중요!)
                 dong_name: dongName, // 동 이름 추가
                 population: pop,
                 households: popData?.households || 0,
@@ -204,6 +233,7 @@ export default function MapContainer({
         console.log('✅ 인구 데이터 매칭 완료:', {
           샘플: enrichedGeojson.features.slice(0, 5).map((f: any) => ({
             전체이름: f.properties.adm_nm,
+            구: f.properties.gu_name,
             동: f.properties.dong_name,
             인구: f.properties.population,
           })),
@@ -211,6 +241,11 @@ export default function MapContainer({
 
         setGeojsonData(enrichedGeojson);
         setPopulationData(population);
+
+        // 부모 컴포넌트에 enriched geojson 전달
+        if (onGeojsonLoad) {
+          onGeojsonLoad(enrichedGeojson);
+        }
       } catch (error) {
         console.error('❌ 데이터 로드 에러:', error);
       } finally {
@@ -304,13 +339,53 @@ export default function MapContainer({
         initialViewState={SEOUL_CENTER}
         style={{ width: '100%', height: '100%' }}
         mapStyle="mapbox://styles/mapbox/light-v11"
-        onClick={handleMapClick}
-        interactiveLayerIds={['seoul-districts-fill']}
+        onClick={viewMode === 'dong' ? handleMapClick : undefined}
+        interactiveLayerIds={viewMode === 'dong' ? ['seoul-districts-fill'] : ['seoul-gu-fill']}
       >
-        {geojsonData && (
+        {/* 행정동 모드: 행정동 레이어 표시 */}
+        {viewMode === 'dong' && geojsonData && (
           <Source id="seoul-districts" type="geojson" data={geojsonData}>
             <Layer {...dataLayer} />
             <Layer {...outlineLayer} />
+          </Source>
+        )}
+
+        {/* 구 모드: 구 레이어 표시 */}
+        {viewMode === 'gu' && externalGuGeojsonData && (
+          <Source id="seoul-gu" type="geojson" data={externalGuGeojsonData}>
+            {/* 구 채우기 레이어 */}
+            <Layer
+              id="seoul-gu-fill"
+              type="fill"
+              paint={{
+                'fill-color': [
+                  'interpolate',
+                  ['linear'],
+                  ['get', selectedIndicator],
+                  0, '#e0e0e0',
+                  100, '#eff6ff',
+                  500, '#dbeafe',
+                  1000, '#bfdbfe',
+                  2000, '#93c5fd',
+                  3000, '#60a5fa',
+                  4000, '#3b82f6',
+                  5000, '#2563eb',
+                  7500, '#1d4ed8',
+                  10000, '#1e40af',
+                ],
+                'fill-opacity': 0.7,
+              }}
+            />
+            {/* 구 경계선 레이어 */}
+            <Layer
+              id="seoul-gu-outline"
+              type="line"
+              paint={{
+                'line-color': '#000000',
+                'line-width': 3,
+                'line-opacity': 0.8,
+              }}
+            />
           </Source>
         )}
       </Map>

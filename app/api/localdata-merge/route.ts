@@ -1,0 +1,176 @@
+/**
+ * LOCALDATA 25개 구 병합 API
+ *
+ * 사용법:
+ * GET /api/localdata-merge?industryCode=072217
+ *
+ * - 특정 업종의 25개 구 데이터를 자동으로 수집하여 병합
+ * - 페이지네이션 처리 (최대 1000건/요청)
+ * - 각 레코드에 GU 필드 추가
+ */
+
+import { NextRequest, NextResponse } from 'next/server';
+import { generateAllGuServices, parseLocalDataService } from '@/utils/localdata-utils';
+
+const SEOUL_API_KEY = process.env.NEXT_PUBLIC_SEOUL_API_KEY;
+const BASE_URL = 'http://openapi.seoul.go.kr:8088';
+
+interface FetchResult {
+  guName: string;
+  guCode: string;
+  data: any[];
+  totalCount: number;
+  error?: string;
+}
+
+/**
+ * 단일 구의 모든 데이터 fetch (페이지네이션 포함)
+ */
+async function fetchGuData(
+  serviceName: string,
+  guName: string,
+  guCode: string
+): Promise<FetchResult> {
+  const result: FetchResult = {
+    guName,
+    guCode,
+    data: [],
+    totalCount: 0,
+  };
+
+  try {
+    // 첫 번째 요청으로 총 개수 확인
+    const firstUrl = `${BASE_URL}/${SEOUL_API_KEY}/json/${serviceName}/1/1`;
+    const firstResponse = await fetch(firstUrl);
+
+    if (!firstResponse.ok) {
+      result.error = `HTTP ${firstResponse.status}`;
+      return result;
+    }
+
+    const firstJson = await firstResponse.json();
+    const serviceKey = Object.keys(firstJson).find((key) => key !== 'RESULT');
+
+    if (!serviceKey) {
+      result.error = 'Invalid response structure';
+      return result;
+    }
+
+    const totalCount = firstJson[serviceKey]?.list_total_count || 0;
+    result.totalCount = totalCount;
+
+    if (totalCount === 0) {
+      return result; // 데이터 없음
+    }
+
+    // 페이지네이션으로 모든 데이터 수집
+    const pageSize = 1000;
+    const totalPages = Math.ceil(totalCount / pageSize);
+
+    for (let page = 0; page < totalPages; page++) {
+      const startIndex = page * pageSize + 1;
+      const endIndex = Math.min((page + 1) * pageSize, totalCount);
+
+      const url = `${BASE_URL}/${SEOUL_API_KEY}/json/${serviceName}/${startIndex}/${endIndex}`;
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        console.error(`❌ ${guName} 페이지 ${page + 1} fetch 실패`);
+        continue;
+      }
+
+      const json = await response.json();
+      const rows = json[serviceKey]?.row || [];
+
+      // GU 필드 추가
+      const enrichedRows = rows.map((row: any) => ({
+        ...row,
+        GU: guName,
+        GU_CODE: guCode,
+      }));
+
+      result.data.push(...enrichedRows);
+    }
+
+    console.log(`✅ ${guName}: ${result.data.length}건 수집 완료`);
+    return result;
+  } catch (error) {
+    result.error = error instanceof Error ? error.message : String(error);
+    console.error(`❌ ${guName} fetch 실패:`, result.error);
+    return result;
+  }
+}
+
+/**
+ * 25개 구 데이터 병합
+ */
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const industryCode = searchParams.get('industryCode');
+
+  if (!industryCode) {
+    return NextResponse.json(
+      { success: false, error: 'industryCode 파라미터가 필요합니다' },
+      { status: 400 }
+    );
+  }
+
+  if (!SEOUL_API_KEY) {
+    return NextResponse.json(
+      { success: false, error: 'SEOUL_API_KEY가 설정되지 않았습니다' },
+      { status: 500 }
+    );
+  }
+
+  try {
+    console.log(`🔄 업종 ${industryCode} - 25개 구 데이터 수집 시작...`);
+
+    // 25개 구 서비스명 생성
+    const services = generateAllGuServices(industryCode);
+
+    // 병렬로 모든 구 데이터 fetch
+    const fetchPromises = services.map((service) =>
+      fetchGuData(service.serviceName, service.guName, service.guCode)
+    );
+
+    const results = await Promise.all(fetchPromises);
+
+    // 결과 집계
+    const mergedData: any[] = [];
+    const summary = {
+      totalRecords: 0,
+      guCount: 0,
+      guList: [] as string[],
+      errors: [] as Array<{ gu: string; error: string }>,
+    };
+
+    for (const result of results) {
+      if (result.error) {
+        summary.errors.push({ gu: result.guName, error: result.error });
+      } else if (result.data.length > 0) {
+        mergedData.push(...result.data);
+        summary.totalRecords += result.data.length;
+        summary.guCount++;
+        summary.guList.push(result.guName);
+      }
+    }
+
+    console.log(`✅ 병합 완료: ${summary.totalRecords}건 (${summary.guCount}/25 구)`);
+
+    return NextResponse.json({
+      success: true,
+      industryCode,
+      data: mergedData,
+      summary,
+    });
+  } catch (error) {
+    console.error('❌ 병합 API 에러:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 }
+    );
+  }
+}
