@@ -31,8 +31,9 @@ interface MapContainerProps {
   onDistrictClick?: (properties: any) => void;
   selectedIndicator: IndicatorType | string; // IndicatorType 또는 메타 카탈로그 indicator_id
   onGeojsonLoad?: (geojson: any) => void; // enriched geojson 전달
-  viewMode?: 'dong' | 'gu'; // 뷰 모드 (행정동 vs 구)
+  viewMode?: 'dong' | 'gu' | 'city'; // 뷰 모드 (행정동 vs 구 vs 시 전체)
   guGeojsonData?: any; // 구 GeoJSON (지표 데이터 병합됨)
+  cityData?: { value: number; description: string; totalRows?: number }; // 시 전체 데이터 (totalRows: 원본 레코드 수)
 }
 
 /**
@@ -136,25 +137,88 @@ const getIndicatorConfig = (indicator: IndicatorType | string) => {
           [55, '#f472b6'],
         ],
       };
+    case 'placeholder':
+      // 구 모드에서 지표 미선택 시 기본값
+      return {
+        property: 'placeholder',
+        label: '지표를 선택하세요',
+        unit: '',
+        stops: [
+          [0, '#e5e7eb'],
+          [1, '#e5e7eb'],
+        ],
+      };
     default:
       // 메타 카탈로그 기반 custom 지표 처리
       // indicator_id를 property로 사용하고, 동적 색상 범위 설정
+      // indicator_id에서 metric_type 유추 (rate, avg, sum, count)
+      let unit = '개';
+      let stops = [
+        [0, '#e0e0e0'],
+        [100, '#eff6ff'],
+        [500, '#dbeafe'],
+        [1000, '#bfdbfe'],
+        [2000, '#93c5fd'],
+        [3000, '#60a5fa'],
+        [4000, '#3b82f6'],
+        [5000, '#2563eb'],
+        [7500, '#1d4ed8'],
+        [10000, '#1e40af'],
+      ];
+
+      // indicator_id에 ratio가 포함되면 rate 타입 (초록색 계열)
+      if (indicator.includes('ratio')) {
+        unit = '%';
+        stops = [
+          [0, '#f0fdf4'],
+          [10, '#dcfce7'],
+          [20, '#bbf7d0'],
+          [30, '#86efac'],
+          [40, '#4ade80'],
+          [50, '#22c55e'],
+          [60, '#16a34a'],
+          [70, '#15803d'],
+          [80, '#166534'],
+          [100, '#14532d'],
+        ];
+      }
+      // indicator_id에 avg나 area가 포함되면 avg 타입 (주황색 계열)
+      else if (indicator.includes('avg') || indicator.includes('area')) {
+        unit = indicator.includes('area') ? '㎡' : '명';
+        stops = [
+          [0, '#fff7ed'],
+          [10, '#ffedd5'],
+          [20, '#fed7aa'],
+          [30, '#fdba74'],
+          [50, '#fb923c'],
+          [75, '#f97316'],
+          [100, '#ea580c'],
+          [150, '#c2410c'],
+          [200, '#9a3412'],
+        ];
+      }
+      // indicator_id에 total이나 sum이 포함되면 sum 타입 (보라색 계열)
+      else if (indicator.includes('total') || indicator.includes('sum')) {
+        unit = '명';
+        stops = [
+          [0, '#faf5ff'],
+          [100, '#f3e8ff'],
+          [500, '#e9d5ff'],
+          [1000, '#d8b4fe'],
+          [2000, '#c084fc'],
+          [3000, '#a855f7'],
+          [5000, '#9333ea'],
+          [7500, '#7e22ce'],
+          [10000, '#6b21a8'],
+        ];
+      }
+      // 기본: count 타입 (파란색 계열)
+
       return {
         property: indicator,
         label: indicator,
-        unit: '개',
-        stops: [
-          [0, '#e0e0e0'],
-          [100, '#eff6ff'],
-          [500, '#dbeafe'],
-          [1000, '#bfdbfe'],
-          [2000, '#93c5fd'],
-          [3000, '#60a5fa'],
-          [4000, '#3b82f6'],
-          [5000, '#2563eb'],
-          [7500, '#1d4ed8'],
-          [10000, '#1e40af'],
-        ],
+        unit: unit,
+        stops: stops,
       };
   }
 };
@@ -165,6 +229,7 @@ export default function MapContainer({
   onGeojsonLoad,
   viewMode = 'dong',
   guGeojsonData: externalGuGeojsonData,
+  cityData,
 }: MapContainerProps) {
   const mapRef = useRef<MapRef>(null);
   const [geojsonData, setGeojsonData] = useState<any>(null);
@@ -322,9 +387,12 @@ export default function MapContainer({
     );
   }
 
+  // 로딩 상태: 행정동 모드에서는 geojsonData가 없을 때, 구 모드에서는 항상 로딩 완료로 간주
+  const showLoading = viewMode === 'dong' ? isLoading : false;
+
   return (
     <div className="relative w-full h-screen">
-      {isLoading && (
+      {showLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 z-10">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -358,21 +426,12 @@ export default function MapContainer({
               id="seoul-gu-fill"
               type="fill"
               paint={{
-                'fill-color': [
+                'fill-color': indicatorConfig ? [
                   'interpolate',
                   ['linear'],
-                  ['get', selectedIndicator],
-                  0, '#e0e0e0',
-                  100, '#eff6ff',
-                  500, '#dbeafe',
-                  1000, '#bfdbfe',
-                  2000, '#93c5fd',
-                  3000, '#60a5fa',
-                  4000, '#3b82f6',
-                  5000, '#2563eb',
-                  7500, '#1d4ed8',
-                  10000, '#1e40af',
-                ],
+                  ['get', indicatorConfig.property],
+                  ...indicatorConfig.stops.flat()
+                ] : '#e0e0e0',
                 'fill-opacity': 0.7,
               }}
             />
@@ -386,14 +445,97 @@ export default function MapContainer({
                 'line-opacity': 0.8,
               }}
             />
+            {/* 구 이름 텍스트 레이어 */}
+            <Layer
+              id="seoul-gu-labels"
+              type="symbol"
+              layout={{
+                'text-field': ['get', 'gu_name'],
+                'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                'text-size': 14,
+                'text-offset': [0, -1.5],
+                'text-anchor': 'center',
+              }}
+              paint={{
+                'text-color': '#000000',
+                'text-halo-color': '#ffffff',
+                'text-halo-width': 2,
+              }}
+            />
+            {/* 구 수치 텍스트 레이어 */}
+            {indicatorConfig && (
+              <Layer
+                id="seoul-gu-values"
+                type="symbol"
+                layout={{
+                  'text-field': [
+                    'concat',
+                    ['to-string', ['round', ['get', indicatorConfig.property]]],
+                    indicatorConfig.unit
+                  ],
+                  'text-font': ['Open Sans Semibold', 'Arial Unicode MS Regular'],
+                  'text-size': 12,
+                  'text-offset': [0, 0.5],
+                  'text-anchor': 'center',
+                }}
+                paint={{
+                  'text-color': '#1e3a8a',
+                  'text-halo-color': '#ffffff',
+                  'text-halo-width': 1.5,
+                }}
+              />
+            )}
           </Source>
         )}
       </Map>
 
-      {/* 범례 (Legend) */}
-      {!isLoading && (
+      {/* 시 전체 통계 카드 - city 모드에서만 표시 */}
+      {viewMode === 'city' && cityData && (
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white p-8 rounded-2xl shadow-2xl z-10 min-w-[400px]">
+          <div className="text-center">
+            <h2 className="text-3xl font-bold text-gray-800 mb-2">서울시 전체</h2>
+            <p className="text-sm text-gray-500 mb-6">{cityData.description}</p>
+            <div className="bg-blue-50 rounded-xl p-6">
+              {cityData.totalRows && cityData.totalRows !== cityData.value ? (
+                // 측정소 같은 경우: 총 레코드 수와 고유 개체 수가 다름
+                <>
+                  <div className="text-5xl font-bold text-blue-600 mb-2">
+                    {cityData.totalRows.toLocaleString()}
+                  </div>
+                  <div className="text-lg text-gray-600 mb-4">
+                    건의 측정 데이터
+                  </div>
+                  <div className="text-2xl font-semibold text-blue-500 pt-4 border-t border-blue-200">
+                    {cityData.value.toLocaleString()}개 측정소
+                  </div>
+                </>
+              ) : (
+                // 일반적인 경우
+                <>
+                  <div className="text-5xl font-bold text-blue-600 mb-2">
+                    {cityData.value.toLocaleString()}
+                  </div>
+                  <div className="text-lg text-gray-600">
+                    {cityData.description.includes('시설') || cityData.description.includes('기관')
+                      ? '개 시설'
+                      : '건'}
+                  </div>
+                </>
+              )}
+            </div>
+            <p className="text-xs text-gray-400 mt-4">
+              * 서울시 전역 데이터
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* 범례 (Legend) - 행정동 모드에서만 표시 */}
+      {!isLoading && indicatorConfig && viewMode === 'dong' && (
         <div className="absolute bottom-8 left-4 bg-white p-4 rounded-lg shadow-lg z-10 max-w-xs">
-          <h3 className="font-bold text-sm mb-2">{indicatorConfig.label}</h3>
+          <h3 className="font-bold text-sm mb-2">
+            {indicatorConfig.label}
+          </h3>
           <div className="space-y-1 text-xs">
             {indicatorConfig.stops
               .slice()

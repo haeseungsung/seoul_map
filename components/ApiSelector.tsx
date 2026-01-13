@@ -20,6 +20,7 @@ export default function ApiSelector({ onApiSelect, selectedApiId }: ApiSelectorP
   const [catalog, setCatalog] = useState<SeoulApiService[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [spatialFilter, setSpatialFilter] = useState<'all' | 'gu' | 'city'>('all'); // 구별/시별 필터
   const [isLoading, setIsLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
 
@@ -46,9 +47,16 @@ export default function ApiSelector({ onApiSelect, selectedApiId }: ApiSelectorP
     return Array.from(uniqueCategories).sort();
   }, [catalog]);
 
-  // Filter services based on search query and category
+  // Filter services based on search query, category, and spatial type
   const filteredServices = useMemo(() => {
     let filtered = catalog;
+
+    // Filter by spatial type (구별/시별)
+    if (spatialFilter === 'gu') {
+      filtered = filtered.filter((s) => s.district !== '서울시 전체' && s.district !== '');
+    } else if (spatialFilter === 'city') {
+      filtered = filtered.filter((s) => s.district === '서울시 전체' || s.district === '');
+    }
 
     // Filter by category
     if (selectedCategory) {
@@ -66,9 +74,9 @@ export default function ApiSelector({ onApiSelect, selectedApiId }: ApiSelectorP
       );
     }
 
-    // Limit to 50 results for performance
-    return filtered.slice(0, 50);
-  }, [catalog, searchQuery, selectedCategory]);
+    // Limit to 100 results for performance
+    return filtered.slice(0, 100);
+  }, [catalog, searchQuery, selectedCategory, spatialFilter]);
 
   const selectedService = catalog.find((s) => s.id === selectedApiId);
 
@@ -107,6 +115,40 @@ export default function ApiSelector({ onApiSelect, selectedApiId }: ApiSelectorP
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               autoFocus
             />
+
+            {/* Spatial Filter (구별/시별) */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSpatialFilter('all')}
+                className={`flex-1 px-3 py-2 text-xs font-medium rounded-md transition ${
+                  spatialFilter === 'all'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                전체
+              </button>
+              <button
+                onClick={() => setSpatialFilter('gu')}
+                className={`flex-1 px-3 py-2 text-xs font-medium rounded-md transition ${
+                  spatialFilter === 'gu'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                구별 데이터
+              </button>
+              <button
+                onClick={() => setSpatialFilter('city')}
+                className={`flex-1 px-3 py-2 text-xs font-medium rounded-md transition ${
+                  spatialFilter === 'city'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                시별 데이터
+              </button>
+            </div>
 
             {/* Category Filter */}
             <select
@@ -163,8 +205,8 @@ export default function ApiSelector({ onApiSelect, selectedApiId }: ApiSelectorP
             {/* Results Count Footer */}
             <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-4 py-2">
               <p className="text-xs text-gray-600">
-                {filteredServices.length === 50
-                  ? '상위 50개 결과 표시 (검색어를 더 구체화하세요)'
+                {filteredServices.length === 100
+                  ? '상위 100개 결과 표시 (검색어를 더 구체화하세요)'
                   : `${filteredServices.length.toLocaleString()}개 결과`}
               </p>
             </div>

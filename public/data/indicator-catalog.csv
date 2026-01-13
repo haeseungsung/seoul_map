@@ -1,8 +1,24 @@
-family,indicator_id,indicator_name,metric_type,spatial_grain,source_pattern,value_field,description
-LOCALDATA,retail_wholesale_count,유통전문판매업_업소수,count,gu,LOCALDATA_072217_*,BIZPLC_NM,구별 유통전문판매업 업소 수
-LOCALDATA,food_service_count,일반음식점_업소수,count,gu,LOCALDATA_070101_*,BIZPLC_NM,구별 일반음식점 업소 수
-LOCALDATA,cafe_count,휴게음식점_업소수,count,gu,LOCALDATA_070102_*,BIZPLC_NM,구별 휴게음식점(카페) 업소 수
-LOCALDATA,convenience_count,편의점_업소수,count,gu,LOCALDATA_072101_*,BIZPLC_NM,구별 편의점 업소 수
-LOCALDATA,supermarket_count,슈퍼마켓_업소수,count,gu,LOCALDATA_072102_*,BIZPLC_NM,구별 슈퍼마켓 업소 수
-POPULATION,total_population,총인구,count,dong,POPULATION_CSV,population,행정동별 총 인구수
-POPULATION,households,가구수,count,dong,POPULATION_CSV,households,행정동별 가구 수
+family,indicator_id,indicator_name,metric_type,spatial_grain,source_pattern,value_field,aggregation_method,filter_condition,description
+LOCALDATA,retail_wholesale_count,유통전문판매업_전체,count,gu,LOCALDATA_072217_*,BPLCNM,count,,구별 유통전문판매업 전체 업소 수
+LOCALDATA,retail_wholesale_active,유통전문판매업_영업중,count,gu,LOCALDATA_072217_*,BPLCNM,count_active,TRDSTATEGBN=01,구별 영업중인 유통전문판매업 업소 수
+LOCALDATA,retail_wholesale_closed,유통전문판매업_폐업,count,gu,LOCALDATA_072217_*,BPLCNM,count_closed,TRDSTATEGBN=03,구별 폐업한 유통전문판매업 업소 수
+LOCALDATA,retail_wholesale_ratio,유통전문판매업_영업률,rate,gu,LOCALDATA_072217_*,TRDSTATEGBN,active_ratio,,유통전문판매업 영업률 (%)
+LOCALDATA,food_service_count,일반음식점_전체,count,gu,LOCALDATA_072404_*,BPLCNM,count,,구별 일반음식점 전체 업소 수
+LOCALDATA,food_service_active,일반음식점_영업중,count,gu,LOCALDATA_072404_*,BPLCNM,count_active,TRDSTATEGBN=01,구별 영업중인 일반음식점 업소 수
+LOCALDATA,food_service_closed,일반음식점_폐업,count,gu,LOCALDATA_072404_*,BPLCNM,count_closed,TRDSTATEGBN=03,구별 폐업한 일반음식점 업소 수
+LOCALDATA,food_service_ratio,일반음식점_영업률,rate,gu,LOCALDATA_072404_*,TRDSTATEGBN,active_ratio,,일반음식점 영업률 (%)
+LOCALDATA,food_avg_area,일반음식점_평균면적,avg,gu,LOCALDATA_072404_*,SITEAREA,avg,SITEAREA>0,일반음식점 평균 면적 (㎡)
+LOCALDATA,convenience_count,편의점_전체,count,gu,LOCALDATA_072101_*,BPLCNM,count,,구별 편의점 전체 업소 수
+LOCALDATA,convenience_active,편의점_영업중,count,gu,LOCALDATA_072101_*,BPLCNM,count_active,TRDSTATEGBN=01,구별 영업중인 편의점 업소 수
+LOCALDATA,convenience_closed,편의점_폐업,count,gu,LOCALDATA_072101_*,BPLCNM,count_closed,TRDSTATEGBN=03,구별 폐업한 편의점 업소 수
+LOCALDATA,convenience_ratio,편의점_영업률,rate,gu,LOCALDATA_072101_*,TRDSTATEGBN,active_ratio,,편의점 영업률 (%)
+LOCALDATA,supermarket_count,슈퍼마켓_전체,count,gu,LOCALDATA_072102_*,BPLCNM,count,,구별 슈퍼마켓 전체 업소 수
+LOCALDATA,supermarket_active,슈퍼마켓_영업중,count,gu,LOCALDATA_072102_*,BPLCNM,count_active,TRDSTATEGBN=01,구별 영업중인 슈퍼마켓 업소 수
+LOCALDATA,supermarket_closed,슈퍼마켓_폐업,count,gu,LOCALDATA_072102_*,BPLCNM,count_closed,TRDSTATEGBN=03,구별 폐업한 슈퍼마켓 업소 수
+LOCALDATA,supermarket_ratio,슈퍼마켓_영업률,rate,gu,LOCALDATA_072102_*,TRDSTATEGBN,active_ratio,,슈퍼마켓 영업률 (%)
+LOCALDATA,hospital_count,병원_전체,count,gu,LOCALDATA_010101_*,BPLCNM,count,,구별 병원 전체 업소 수
+LOCALDATA,hospital_active,병원_영업중,count,gu,LOCALDATA_010101_*,BPLCNM,count_active,TRDSTATEGBN=01,구별 영업중인 병원 업소 수
+LOCALDATA,hospital_closed,병원_폐업,count,gu,LOCALDATA_010101_*,BPLCNM,count_closed,TRDSTATEGBN=03,구별 폐업한 병원 업소 수
+LOCALDATA,hospital_ratio,병원_영업률,rate,gu,LOCALDATA_010101_*,TRDSTATEGBN,active_ratio,,병원 영업률 (%)
+POPULATION,total_population,총인구,count,dong,POPULATION_CSV,population,count,,행정동별 총 인구수
+POPULATION,households,가구수,count,dong,POPULATION_CSV,households,count,,행정동별 가구 수

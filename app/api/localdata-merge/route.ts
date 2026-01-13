@@ -39,8 +39,8 @@ async function fetchGuData(
   };
 
   try {
-    // 첫 번째 요청으로 총 개수 확인
-    const firstUrl = `${BASE_URL}/${SEOUL_API_KEY}/json/${serviceName}/1/1`;
+    // 첫 번째 요청으로 총 개수 확인 (XML 사용)
+    const firstUrl = `${BASE_URL}/${SEOUL_API_KEY}/xml/${serviceName}/1/1`;
     const firstResponse = await fetch(firstUrl);
 
     if (!firstResponse.ok) {
@@ -48,20 +48,20 @@ async function fetchGuData(
       return result;
     }
 
-    const firstJson = await firstResponse.json();
-    const serviceKey = Object.keys(firstJson).find((key) => key !== 'RESULT');
+    const firstXml = await firstResponse.text();
 
-    if (!serviceKey) {
-      result.error = 'Invalid response structure';
-      return result;
-    }
-
-    const totalCount = firstJson[serviceKey]?.list_total_count || 0;
+    // XML에서 총 개수 추출
+    const listTotalCountMatch = firstXml.match(/<list_total_count>(\d+)<\/list_total_count>/);
+    const totalCount = listTotalCountMatch ? parseInt(listTotalCountMatch[1]) : 0;
     result.totalCount = totalCount;
 
     if (totalCount === 0) {
       return result; // 데이터 없음
     }
+
+    // 서비스 키 추출 (루트 엘리먼트명)
+    const serviceKeyMatch = firstXml.match(/<(\w+)>/);
+    const serviceKey = serviceKeyMatch ? serviceKeyMatch[1] : serviceName;
 
     // 페이지네이션으로 모든 데이터 수집
     const pageSize = 1000;
@@ -71,7 +71,7 @@ async function fetchGuData(
       const startIndex = page * pageSize + 1;
       const endIndex = Math.min((page + 1) * pageSize, totalCount);
 
-      const url = `${BASE_URL}/${SEOUL_API_KEY}/json/${serviceName}/${startIndex}/${endIndex}`;
+      const url = `${BASE_URL}/${SEOUL_API_KEY}/xml/${serviceName}/${startIndex}/${endIndex}`;
       const response = await fetch(url);
 
       if (!response.ok) {
@@ -79,8 +79,24 @@ async function fetchGuData(
         continue;
       }
 
-      const json = await response.json();
-      const rows = json[serviceKey]?.row || [];
+      const xmlText = await response.text();
+
+      // XML에서 row 데이터 추출 (간단한 파싱)
+      const rowMatches = xmlText.matchAll(/<row>([\s\S]*?)<\/row>/g);
+      const rows = [];
+
+      for (const match of rowMatches) {
+        const rowXml = match[1];
+        const rowData: any = {};
+
+        // 각 필드 추출
+        const fieldMatches = rowXml.matchAll(/<(\w+)>([^<]*)<\/\1>/g);
+        for (const fieldMatch of fieldMatches) {
+          rowData[fieldMatch[1]] = fieldMatch[2];
+        }
+
+        rows.push(rowData);
+      }
 
       // GU 필드 추가
       const enrichedRows = rows.map((row: any) => ({

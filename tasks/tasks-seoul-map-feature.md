@@ -42,24 +42,24 @@
 
 ---
 
-- [ ] 2.0 Implement choropleth coloring based on population data  
-  - [ ] 2.1 서울시 인구 데이터 API 구조 분석  
-  - [ ] 2.2 `seoul-data.ts`에서 API fetch 함수 작성  
-  - [ ] 2.3 데이터를 행정동 코드 기준으로 매핑  
-  - [ ] 2.4 `map-utils.ts`에서 값 → 색상 변환 로직 작성  
-  - [ ] 2.5 지도에 색상 반영: feature마다 fill-color 적용  
-  - [ ] 2.6 색상 범례(legend) 컴포넌트 추가  
-  - [ ] 2.7 데이터 누락 시 fallback 처리 (ex. 회색 표시)
+- [x] 2.0 Implement choropleth coloring based on population data
+  - [x] 2.1 서울시 인구 데이터 API 구조 분석 (CSV 파일 사용)
+  - [x] 2.2 `seoul-data.ts`에서 API fetch 함수 작성 (`loadPopulationFromCSV`)
+  - [x] 2.3 데이터를 행정동 코드 기준으로 매핑 (`csv-parser.ts`)
+  - [x] 2.4 `map-utils.ts`에서 값 → 색상 변환 로직 작성 (`getIndicatorConfig`)
+  - [x] 2.5 지도에 색상 반영: feature마다 fill-color 적용 (Mapbox expression)
+  - [x] 2.6 색상 범례(legend) 컴포넌트 추가 (MapContainer 하단)
+  - [x] 2.7 데이터 누락 시 fallback 처리 (ex. 회색 표시, `|| 0` 처리)
 
 ---
 
-- [ ] 3.0 Add click interaction and detail panel  
-  - [ ] 3.1 지도 클릭 이벤트 핸들러 작성  
-  - [ ] 3.2 클릭한 Feature의 행정동 코드 기반 데이터 추출  
-  - [ ] 3.3 서울시 전체 평균, 행정동 평균 계산 함수 구현  
-  - [ ] 3.4 비교 결과 % 차이 계산 및 문구 생성  
-  - [ ] 3.5 `DetailPanel.tsx` 컴포넌트 구현 및 UI 렌더링  
-  - [ ] 3.6 패널 닫기 / 다시 클릭 시 갱신 동작 확인
+- [x] 3.0 Add click interaction and detail panel
+  - [x] 3.1 지도 클릭 이벤트 핸들러 작성 (MapContainer.tsx - 이미 구현됨)
+  - [x] 3.2 클릭한 Feature의 행정동 코드 기반 데이터 추출 (이미 구현됨)
+  - [x] 3.3 서울시 전체 평균, 행정동 평균 계산 함수 구현 (`map-utils.ts`: `calculateSeoulAverage`, `calculateGuAverage`)
+  - [x] 3.4 비교 결과 % 차이 계산 및 문구 생성 (`map-utils.ts`: `calculateComparison`)
+  - [x] 3.5 `DetailPanel.tsx` 컴포넌트 구현 및 UI 렌더링 (그라디언트 바, 비교 통계 포함)
+  - [x] 3.6 패널 닫기 / 다시 클릭 시 갱신 동작 확인 (onClose 핸들러, 클릭 시 재계산)
 
 ---
 

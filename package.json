@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@turf/turf": "^7.3.1",
     "@types/mapbox-gl": "^3.4.1",
     "autoprefixer": "^10.4.23",
     "mapbox-gl": "^3.17.0",
