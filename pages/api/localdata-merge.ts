@@ -9,7 +9,7 @@
  * - 각 레코드에 GU 필드 추가
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import type { NextApiRequest, NextApiResponse } from 'next';
 import { generateAllGuServices, parseLocalDataService } from '@/utils/localdata-utils';
 
 const SEOUL_API_KEY = process.env.NEXT_PUBLIC_SEOUL_API_KEY;
@@ -120,22 +120,20 @@ async function fetchGuData(
 /**
  * 25개 구 데이터 병합
  */
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const industryCode = searchParams.get('industryCode');
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const method = 'GET';
+  if (req.method !== method) {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+  const query = req.query;
+  const industryCode = query.industryCode as string;
 
   if (!industryCode) {
-    return NextResponse.json(
-      { success: false, error: 'industryCode 파라미터가 필요합니다' },
-      { status: 400 }
-    );
+    return res.status(400).json({ success: false, error: 'industryCode 파라미터가 필요합니다' });
   }
 
   if (!SEOUL_API_KEY) {
-    return NextResponse.json(
-      { success: false, error: 'SEOUL_API_KEY가 설정되지 않았습니다' },
-      { status: 500 }
-    );
+    return res.status(500).json({ success: false, error: 'SEOUL_API_KEY가 설정되지 않았습니다' });
   }
 
   try {
@@ -173,7 +171,7 @@ export async function GET(request: NextRequest) {
 
     console.log(`✅ 병합 완료: ${summary.totalRecords}건 (${summary.guCount}/25 구)`);
 
-    return NextResponse.json({
+    return res.json({
       success: true,
       industryCode,
       data: mergedData,
@@ -181,12 +179,9 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('❌ 병합 API 에러:', error);
-    return NextResponse.json(
-      {
+    return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    );
+      });
   }
 }

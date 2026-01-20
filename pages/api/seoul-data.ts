@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import type { NextApiRequest, NextApiResponse } from 'next';
 import fs from 'fs';
 import path from 'path';
 import { KNOWN_WORKING_APIS } from './_known-apis';
@@ -25,46 +25,36 @@ function loadCatalog() {
   }
 }
 
-export async function GET(request: NextRequest) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
   try {
     const API_KEY = process.env.NEXT_PUBLIC_SEOUL_API_KEY || '';
 
     if (!API_KEY) {
-      return NextResponse.json(
-        { error: 'API 키가 설정되지 않았습니다' },
-        { status: 500 }
-      );
+      return res.status(500).json({ error: 'API 키가 설정되지 않았습니다' });
     }
 
-    const { searchParams } = new URL(request.url);
-    const serviceId = searchParams.get('serviceId'); // 예: "OA-15379"
-    const startIndex = parseInt(searchParams.get('startIndex') || '1');
-    const endIndex = parseInt(searchParams.get('endIndex') || '1000');
+    const { serviceId, startIndex = '1', endIndex = '1000' } = req.query;
+    const start = parseInt(startIndex as string);
+    const end = parseInt(endIndex as string);
 
     if (!serviceId) {
-      return NextResponse.json(
-        { error: '서비스 ID가 필요합니다' },
-        { status: 400 }
-      );
+      return res.status(400).json({ error: '서비스 ID가 필요합니다' });
     }
 
     // 카탈로그에서 서비스 정보 찾기
     const catalog = loadCatalog();
 
     if (!catalog || catalog.length === 0) {
-      return NextResponse.json(
-        { error: 'API 카탈로그를 로드할 수 없습니다' },
-        { status: 500 }
-      );
+      return res.status(500).json({ error: 'API 카탈로그를 로드할 수 없습니다' });
     }
 
     const serviceInfo = catalog.find((s: any) => s.id === serviceId);
 
     if (!serviceInfo) {
-      return NextResponse.json(
-        { error: `서비스 ID "${serviceId}"를 카탈로그에서 찾을 수 없습니다` },
-        { status: 404 }
-      );
+      return res.status(404).json({ error: `서비스 ID "${serviceId}"를 카탈로그에서 찾을 수 없습니다` });
     }
 
     // 서울시 OpenAPI는 대부분 XML 응답을 사용합니다.
@@ -91,7 +81,7 @@ export async function GET(request: NextRequest) {
 
     if (knownApi) {
       // LOCALDATA 계열도 XML 사용
-      apiUrl = `http://openapi.seoul.go.kr:8088/${API_KEY}/xml/${knownApi.serviceName}/${startIndex}/${endIndex}/`;
+      apiUrl = `http://openapi.seoul.go.kr:8088/${API_KEY}/xml/${knownApi.serviceName}/${start}/${end}/`;
       console.log('✅ Known API 발견 (XML):', knownApi.serviceName);
     } else if (serviceInfo.name.includes('사회복지시설')) {
       // 사회복지시설 API: fcltOpenInfo_{구코드} 패턴 (XML)
@@ -100,15 +90,15 @@ export async function GET(request: NextRequest) {
         const guName = guMatch[1];
         const guCode = GU_CODE_MAP[guName];
         if (guCode) {
-          apiUrl = `http://openapi.seoul.go.kr:8088/${API_KEY}/xml/fcltOpenInfo_${guCode}/${startIndex}/${endIndex}/`;
+          apiUrl = `http://openapi.seoul.go.kr:8088/${API_KEY}/xml/fcltOpenInfo_${guCode}/${start}/${end}/`;
           console.log(`✅ 사회복지시설 API 발견 (XML): fcltOpenInfo_${guCode} (${guName})`);
         } else {
           // 구 코드를 찾지 못하면 fallback (XML)
-          apiUrl = `http://openapi.seoul.go.kr:8088/${API_KEY}/xml/tbLnOpendataService/${startIndex}/${endIndex}/${serviceId}/`;
+          apiUrl = `http://openapi.seoul.go.kr:8088/${API_KEY}/xml/tbLnOpendataService/${start}/${end}/${serviceId}/`;
           console.log('⚠️  구 코드를 찾을 수 없음, tbLnOpendataService (XML) 시도');
         }
       } else {
-        apiUrl = `http://openapi.seoul.go.kr:8088/${API_KEY}/xml/tbLnOpendataService/${startIndex}/${endIndex}/${serviceId}/`;
+        apiUrl = `http://openapi.seoul.go.kr:8088/${API_KEY}/xml/tbLnOpendataService/${start}/${end}/${serviceId}/`;
         console.log('⚠️  구 이름 추출 실패, tbLnOpendataService (XML) 시도');
       }
     } else {
@@ -137,16 +127,16 @@ export async function GET(request: NextRequest) {
         const entityCode = entityCodeMap[entityName];
 
         if (guCode && entityCode) {
-          apiUrl = `http://openapi.seoul.go.kr:8088/${API_KEY}/xml/LOCALDATA_${entityCode}_${guCode}/${startIndex}/${endIndex}/`;
+          apiUrl = `http://openapi.seoul.go.kr:8088/${API_KEY}/xml/LOCALDATA_${entityCode}_${guCode}/${start}/${end}/`;
           console.log(`✅ LOCALDATA API 발견 (XML): LOCALDATA_${entityCode}_${guCode} (${guName} ${entityName})`);
         } else {
           // 매핑을 찾지 못하면 fallback
-          apiUrl = `http://openapi.seoul.go.kr:8088/${API_KEY}/xml/tbLnOpendataService/${startIndex}/${endIndex}/${serviceId}/`;
+          apiUrl = `http://openapi.seoul.go.kr:8088/${API_KEY}/xml/tbLnOpendataService/${start}/${end}/${serviceId}/`;
           console.log(`⚠️  LOCALDATA 매핑 실패 (entityCode: ${entityCode}, guCode: ${guCode}), fallback 시도`);
         }
       } else {
         // 기본값: XML 형식으로 tbLnOpendataService 시도
-        apiUrl = `http://openapi.seoul.go.kr:8088/${API_KEY}/xml/tbLnOpendataService/${startIndex}/${endIndex}/${serviceId}/`;
+        apiUrl = `http://openapi.seoul.go.kr:8088/${API_KEY}/xml/tbLnOpendataService/${start}/${end}/${serviceId}/`;
         console.log('⚠️  Unknown API, tbLnOpendataService (XML) 시도');
       }
     }
@@ -259,7 +249,7 @@ export async function GET(request: NextRequest) {
 
       // INFO-200: 해당하는 데이터가 없습니다
       if (resultCode === 'INFO-200') {
-        return NextResponse.json({
+        return res.json({
           success: false,
           error: '해당 서비스는 데이터를 제공하지 않습니다',
           code: resultCode,
@@ -269,19 +259,16 @@ export async function GET(request: NextRequest) {
 
       // INFO-000이 아닌 다른 에러 코드
       if (resultCode !== 'INFO-000') {
-        return NextResponse.json(
-          {
+        return res.status(400).json({
             success: false,
             error: `API 에러: ${serviceData.RESULT.MESSAGE || resultCode}`,
             code: resultCode,
-          },
-          { status: 400 }
-        );
+          });
       }
 
       // INFO-000이고 row도 없고 list_total_count도 0이면 에러
       if (!serviceData.row && !serviceData.list_total_count) {
-        return NextResponse.json({
+        return res.json({
           success: false,
           error: '해당 서비스는 데이터를 제공하지 않습니다',
           code: resultCode,
@@ -293,7 +280,7 @@ export async function GET(request: NextRequest) {
     const totalCount = serviceData?.list_total_count || 0;
     const dataDate = serviceData?.dataDate || null;
 
-    return NextResponse.json({
+    return res.json({
       success: true,
       data: serviceData,
       serviceKey,
@@ -310,12 +297,9 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('❌ API 호출 실패:', error);
 
-    return NextResponse.json(
-      {
+    return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    );
+      });
   }
 }

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import type { NextApiRequest, NextApiResponse } from 'next';
 import fs from 'fs';
 import path from 'path';
 
@@ -68,23 +68,21 @@ async function fetchGuData(serviceId: string, guName: string) {
   }
 }
 
-export async function GET(request: NextRequest) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const method = 'GET';
+  if (req.method !== method) {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
   try {
     if (!API_KEY) {
-      return NextResponse.json(
-        { error: 'API 키가 설정되지 않았습니다' },
-        { status: 500 }
-      );
+      return res.status(500).json({ error: 'API 키가 설정되지 않았습니다' });
     }
 
-    const { searchParams } = new URL(request.url);
-    const apiType = searchParams.get('apiType'); // 예: "일반음식점 인허가 정보"
+    const query = req.query;
+    const apiType = query.apiType as string; // 예: "일반음식점 인허가 정보"
 
     if (!apiType) {
-      return NextResponse.json(
-        { error: 'apiType 파라미터가 필요합니다' },
-        { status: 400 }
-      );
+      return res.status(400).json({ error: 'apiType 파라미터가 필요합니다' });
     }
 
     console.log('🔄 구별 API 데이터 수집 시작:', apiType);
@@ -92,10 +90,7 @@ export async function GET(request: NextRequest) {
     // 카탈로그 로드
     const catalog = loadCatalog();
     if (!catalog || catalog.length === 0) {
-      return NextResponse.json(
-        { error: 'API 카탈로그를 로드할 수 없습니다' },
-        { status: 500 }
-      );
+      return res.status(500).json({ error: 'API 카탈로그를 로드할 수 없습니다' });
     }
 
     // 각 구별로 해당 API 찾기
@@ -113,10 +108,7 @@ export async function GET(request: NextRequest) {
     console.log(`✅ ${foundCount}개 구의 API 발견`);
 
     if (foundCount === 0) {
-      return NextResponse.json(
-        { error: `"${apiType}"에 해당하는 구별 API를 찾을 수 없습니다` },
-        { status: 404 }
-      );
+      return res.status(404).json({ error: `"${apiType}"에 해당하는 구별 API를 찾을 수 없습니다` });
     }
 
     // 모든 구의 데이터를 병렬로 가져오기
@@ -158,7 +150,7 @@ export async function GET(request: NextRequest) {
 
     console.log(`📊 총 ${allRows.length}개 row 병합 완료`);
 
-    return NextResponse.json({
+    return res.json({
       success: true,
       apiType,
       totalRows: allRows.length,
@@ -176,12 +168,9 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('❌ 구별 데이터 수집 실패:', error);
-    return NextResponse.json(
-      {
+    return res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    );
+      });
   }
 }
