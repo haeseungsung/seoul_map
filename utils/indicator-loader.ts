@@ -20,6 +20,11 @@ export interface IndicatorValue {
   dong?: string;
   value: number;
   totalRows?: number; // 원본 레코드 수 (측정소 데이터 등)
+  // 대기질 데이터 추가 필드
+  pm10?: number; // 미세먼지(PM10) 평균값
+  pm25?: number; // 초미세먼지(PM2.5) 평균값
+  airQualityLevel?: '좋음' | '보통' | '나쁨' | '매우나쁨'; // 대기질 등급
+  stationCount?: number; // 측정소 개수
 }
 
 export interface IndicatorDataResult {
@@ -180,9 +185,12 @@ function aggregateByGu(data: any[], metadata: IndicatorMetadata): IndicatorValue
 
 /**
  * 특정 지표의 데이터를 API에서 가져오기
+ * @param metadata - 지표 메타데이터
+ * @param options - 옵션 (timeHour: 시간대 필터 0-23)
  */
 export async function loadIndicatorData(
-  metadata: IndicatorMetadata
+  metadata: IndicatorMetadata,
+  options?: { timeHour?: number }
 ): Promise<IndicatorValue[]> {
   const { family, source_pattern } = metadata;
 
@@ -244,25 +252,79 @@ export async function loadIndicatorData(
     const apiId = dongApiMap[0].id;
     console.log(`   - 단일 API가 모든 행정동 데이터 반환: ${apiId}`);
 
-    const response = await fetch(`/api/seoul-data?serviceId=${apiId}&startIndex=1&endIndex=1000`, {
-      signal: AbortSignal.timeout(30000)
-    });
-    const data = await response.json();
+    // 생활인구 API는 대용량(712,396건)이므로 샘플링
+    // API 제한: 한 번에 최대 1,000건
+    // 데이터 구조: 467개 행정동 × 24시간 × 여러 날짜
+    // 패턴: 약 467건마다 다음 시간대로 이동
 
-    if (!data.success || !data.rows || data.rows.length === 0) {
-      console.error('❌ 행정동 API 데이터 없음');
+    const DONGS_COUNT = 467;  // 행정동 개수
+    let allRows: any[] = [];
+
+    if (options?.timeHour !== undefined) {
+      // 특정 시간대 선택: 해당 시간대 데이터만 수집
+      // 시간당 약 467개 행정동 × 여러 날짜 = 충분한 샘플
+      const hourOffset = options.timeHour * DONGS_COUNT;
+      const intervals = [
+        1 + hourOffset,           // 첫 날 해당 시간
+        1 + hourOffset + 11208,   // 다음 날 해당 시간 (24h × 467)
+      ];
+
+      console.log(`   ⏰ 시간대 필터: ${options.timeHour}시 → ${intervals.length}개 구간 샘플링`);
+
+      for (const start of intervals) {
+        const response = await fetch(
+          `/api/seoul-data?serviceId=${apiId}&startIndex=${start}&endIndex=${start + DONGS_COUNT - 1}`,
+          { signal: AbortSignal.timeout(30000) }
+        );
+        const data = await response.json();
+
+        if (data.success && data.rows && data.rows.length > 0) {
+          allRows.push(...data.rows);
+          console.log(`   ✓ 구간 ${start}~${start + DONGS_COUNT - 1}: ${data.rows.length}건 (시간: ${data.rows[0]?.TMZON_PD_SE}시)`);
+        }
+      }
+    } else {
+      // 전체: 하루치 24시간 전체 데이터 수집 (11,208건)
+      // 24번 호출은 너무 많으므로 6개 시간대만 샘플링 (0, 4, 8, 12, 16, 20시)
+      const hours = [0, 4, 8, 12, 16, 20];
+      console.log(`   - 전체 시간대 → ${hours.length}개 시간 샘플링`);
+
+      for (const hour of hours) {
+        const start = 1 + (hour * DONGS_COUNT);
+        const response = await fetch(
+          `/api/seoul-data?serviceId=${apiId}&startIndex=${start}&endIndex=${start + DONGS_COUNT - 1}`,
+          { signal: AbortSignal.timeout(30000) }
+        );
+        const data = await response.json();
+
+        if (data.success && data.rows && data.rows.length > 0) {
+          allRows.push(...data.rows);
+          console.log(`   ✓ ${hour}시: ${data.rows.length}건`);
+        }
+      }
+    }
+
+    if (allRows.length === 0) {
+      console.error('❌ 모든 구간에서 데이터 수집 실패');
       return [];
     }
 
-    console.log(`   ✅ 행정동 데이터 수신: ${data.rows.length}개 행`);
+    console.log(`   ✅ 총 ${allRows.length.toLocaleString()}건 수집 완료`);
 
-    // 행정동 필드 감지 (ADSTRD_CODE_SE, STDR_DE_NM, ADSTRD_NM 등)
-    const dongFields = ['ADSTRD_CODE_SE', 'STDR_DE_NM', 'ADSTRD_NM', 'DONG_NM'];
+    const data = { success: true, rows: allRows };
+
+    console.log(`   ✅ 행정동 데이터 수신: ${data.rows.length}개 행`);
+    console.log(`   - 첫 번째 row의 모든 필드:`, Object.keys(data.rows[0]));
+    console.log(`   - 첫 번째 row 데이터 샘플:`, data.rows[0]);
+
+    // 행정동 필드 감지 (이름 우선, 코드는 마지막)
+    const dongFields = ['ADSTRD_NM', 'DONG_NM', 'STDR_DE_NM', 'ADSTRD_CODE_SE'];
     let dongField: string | null = null;
 
     for (const field of dongFields) {
       if (data.rows[0][field]) {
         dongField = field;
+        console.log(`   - 후보 필드 "${field}" 발견, 값:`, data.rows[0][field]);
         break;
       }
     }
@@ -273,23 +335,109 @@ export async function loadIndicatorData(
     }
 
     console.log(`   - 행정동 필드 감지: ${dongField}`);
+    console.log(`   - 행정동 코드 샘플 (처음 5개):`, data.rows.slice(0, 5).map((r: any) => r[dongField!]));
 
-    // 행정동별 집계 (간단히 개수로)
-    const dongCounts: Record<string, number> = {};
-    data.rows.forEach((row: any) => {
-      const dongName = row[dongField!];
-      if (dongName) {
-        dongCounts[dongName] = (dongCounts[dongName] || 0) + 1;
+    // 값 필드 감지 (생활인구 데이터의 경우 TOT_LVPOP_CO)
+    const valueFields = ['TOT_LVPOP_CO', 'TOT_POPLTN_CNT', 'VALUE', 'COUNT'];
+    let valueField: string | null = null;
+
+    for (const field of valueFields) {
+      if (data.rows[0][field]) {
+        valueField = field;
+        console.log(`   - 값 필드 감지: ${field}, 샘플 값:`, data.rows[0][field]);
+        break;
+      }
+    }
+
+    // 행정동 코드 → 이름 매핑 (GeoJSON에서 생성)
+    const dongCodeToName: Record<string, string> = {};
+
+    // GeoJSON 로드해서 매핑 테이블 생성
+    const geojsonResponse = await fetch('/data/seoul-hangjeongdong.geojson');
+    const geojson = await geojsonResponse.json();
+
+    geojson.features.forEach((feature: any) => {
+      const adm_cd2 = feature.properties?.adm_cd2; // 10자리: "1111053000"
+      const adm_nm = feature.properties?.adm_nm;   // "서울특별시 종로구 사직동"
+
+      if (adm_cd2 && adm_nm) {
+        const code8 = adm_cd2.substring(0, 8); // 앞 8자리: "11110530"
+        const parts = adm_nm.split(' ');
+        const dongName = parts[parts.length - 1]; // "사직동"
+        dongCodeToName[code8] = dongName;
       }
     });
 
-    const indicatorValues: IndicatorValue[] = Object.entries(dongCounts).map(([dong, count]) => ({
-      dong: dong,  // 행정동 이름
-      value: count
-    }));
+    console.log(`   - 매핑 테이블 생성 완료: ${Object.keys(dongCodeToName).length}개 행정동`);
+    console.log(`   - 매핑 샘플 (처음 3개):`, Object.entries(dongCodeToName).slice(0, 3));
 
-    console.log(`✅ 행정동 집계 완료: ${indicatorValues.length}개 행정동`);
-    return indicatorValues;
+    // 이미 정확한 시간대 데이터만 샘플링했으므로 추가 필터링 불필요
+    // 검증을 위해 실제 시간대 확인
+    if (data.rows.length > 0) {
+      const firstRowTime = data.rows[0].TMZON_PD_SE || data.rows[0].TMZON_SE;
+      const uniqueTimes = new Set(data.rows.map((r: any) => r.TMZON_PD_SE || r.TMZON_SE));
+      console.log(`   ✅ 수집된 시간대: [${Array.from(uniqueTimes).sort().join(', ')}]`);
+      if (options?.timeHour !== undefined) {
+        const expectedTime = options.timeHour.toString().padStart(2, '0');
+        if (firstRowTime !== expectedTime) {
+          console.warn(`   ⚠️ 시간대 불일치: 요청=${expectedTime}, 실제=${firstRowTime}`);
+        }
+      }
+    }
+
+    // 행정동별 집계
+    const filteredRows = data.rows;
+    if (valueField) {
+      // 값 필드가 있으면 평균 계산
+      const dongData: Record<string, { sum: number; count: number }> = {};
+
+      filteredRows.forEach((row: any) => {
+        const dongCode = row[dongField!];
+        if (dongCode) {
+          const dongName = dongCodeToName[dongCode];
+          if (dongName) {
+            const value = parseFloat(row[valueField!]) || 0;
+            if (!dongData[dongName]) {
+              dongData[dongName] = { sum: 0, count: 0 };
+            }
+            dongData[dongName].sum += value;
+            dongData[dongName].count += 1;
+          }
+        }
+      });
+
+      const indicatorValues: IndicatorValue[] = Object.entries(dongData).map(([dong, data]) => ({
+        dong: dong,
+        value: Math.round(data.sum / data.count) // 평균값 (반올림)
+      }));
+
+      console.log(`✅ 행정동 집계 완료: ${indicatorValues.length}개 행정동`);
+      console.log(`   - 행정동 샘플 (처음 5개):`, indicatorValues.slice(0, 5).map(v => `${v.dong}: ${v.value.toLocaleString()}명`));
+      return indicatorValues;
+    } else {
+      // 값 필드가 없으면 row 개수만 세기 (기존 로직)
+      const dongCounts: Record<string, number> = {};
+      filteredRows.forEach((row: any) => {
+        const dongCode = row[dongField!];
+        if (dongCode) {
+          const dongName = dongCodeToName[dongCode];
+          if (dongName) {
+            dongCounts[dongName] = (dongCounts[dongName] || 0) + 1;
+          } else {
+            console.warn(`   ⚠️ 매핑되지 않은 행정동 코드: ${dongCode}`);
+          }
+        }
+      });
+
+      const indicatorValues: IndicatorValue[] = Object.entries(dongCounts).map(([dong, count]) => ({
+        dong: dong,
+        value: count
+      }));
+
+      console.log(`✅ 행정동 집계 완료: ${indicatorValues.length}개 행정동`);
+      console.log(`   - 행정동 샘플 (처음 5개):`, indicatorValues.slice(0, 5).map(v => `${v.dong}: ${v.value}개`));
+      return indicatorValues;
+    }
   }
 
   // 서울시 전체 데이터 (CITY 패턴)
@@ -387,10 +535,79 @@ export async function loadIndicatorData(
       });
       const testData = await testResponse.json();
 
-      // MSRSTN_NM 필드로 구별 데이터 추출 (이미 위에서 처리됨)
+      // MSRSTN_NM 필드로 구별 데이터 추출
       if (testData.success && testData.rows && testData.rows.length > 0 && testData.rows[0].MSRSTN_NM) {
         console.log(`   ✅ 구별 rows 데이터 감지 (MSRSTN_NM 필드)`);
 
+        // 대기질 데이터인지 확인 (PM, FPM 필드 존재 여부)
+        const isAirQualityData = testData.rows[0]?.PM !== undefined || testData.rows[0]?.FPM !== undefined;
+
+        if (isAirQualityData) {
+          console.log(`   🌫️  대기질 데이터 감지 - PM10, PM2.5 구별 평균 계산`);
+
+          // 구별로 측정소 데이터 그룹화
+          const guDataMap = new Map<string, { pm10Values: number[], pm25Values: number[], stationCount: number }>();
+
+          testData.rows.forEach((row: any) => {
+            const guName = row.MSRSTN_NM;
+            if (!guName) return;
+
+            if (!guDataMap.has(guName)) {
+              guDataMap.set(guName, { pm10Values: [], pm25Values: [], stationCount: 0 });
+            }
+
+            const guData = guDataMap.get(guName)!;
+            guData.stationCount++;
+
+            const pm10 = parseFloat(row.PM);
+            if (!isNaN(pm10)) guData.pm10Values.push(pm10);
+
+            const pm25 = parseFloat(row.FPM);
+            if (!isNaN(pm25)) guData.pm25Values.push(pm25);
+          });
+
+          // 대기질 등급 판정 함수 (PM2.5 기준)
+          const getAirQualityLevel = (pm25: number): '좋음' | '보통' | '나쁨' | '매우나쁨' => {
+            if (pm25 <= 15) return '좋음';
+            if (pm25 <= 35) return '보통';
+            if (pm25 <= 75) return '나쁨';
+            return '매우나쁨';
+          };
+
+          // 데이터 없는 구 목록
+          const excludedGu = ['은평구', '송파구', '구로구'];
+
+          // 구별 평균 계산 (데이터 없는 구 제외)
+          const indicatorValues: IndicatorValue[] = Array.from(guDataMap.entries())
+            .filter(([guName]) => !excludedGu.includes(guName))
+            .map(([guName, data]) => {
+              const avgPm10 = data.pm10Values.length > 0
+                ? data.pm10Values.reduce((a, b) => a + b, 0) / data.pm10Values.length
+                : 0;
+
+              const avgPm25 = data.pm25Values.length > 0
+                ? data.pm25Values.reduce((a, b) => a + b, 0) / data.pm25Values.length
+                : 0;
+
+              const airQualityLevel = avgPm25 > 0 ? getAirQualityLevel(avgPm25) : '보통';
+
+              return {
+                gu: guName,
+                value: Math.round(avgPm25),
+                pm10: Math.round(avgPm10 * 10) / 10,
+                pm25: Math.round(avgPm25 * 10) / 10,
+                airQualityLevel,
+                stationCount: data.stationCount
+              };
+            });
+
+          console.log(`✅ 구 API 통합 완료: ${indicatorValues.length}개 구, 대기질 데이터 집계`);
+          console.log(`   - 예시: ${indicatorValues[0]?.gu} PM10=${indicatorValues[0]?.pm10}, PM2.5=${indicatorValues[0]?.pm25}, 측정소=${indicatorValues[0]?.stationCount}개`);
+          console.log(`   - 전체 구조 (처음 3개):`, indicatorValues.slice(0, 3));
+          return indicatorValues;
+        }
+
+        // 대기질이 아닌 일반 데이터
         const indicatorValues: IndicatorValue[] = testData.rows.map((row: any) => {
           const guName = row.MSRSTN_NM;
           const value = parseInt(row.PM || row.FPM || row.CAI_IDX || '0');
@@ -458,7 +675,80 @@ export async function loadIndicatorData(
       collectedDataDate = fullData.dataDate;
       collectedDataNote = fullData.dataNote;
 
-      // rows에서 구별 데이터 추출
+      // 대기질 데이터인지 확인 (PM, FPM 필드 존재 여부)
+      const isAirQualityData = fullData.rows[0]?.PM !== undefined || fullData.rows[0]?.FPM !== undefined;
+
+      if (isAirQualityData) {
+        console.log(`   🌫️  대기질 데이터 감지 - PM10, PM2.5 구별 평균 계산`);
+
+        // 구별로 측정소 데이터 그룹화
+        const guDataMap = new Map<string, { pm10Values: number[], pm25Values: number[], stationCount: number }>();
+
+        fullData.rows.forEach((row: any) => {
+          const guName = row.MSRSTN_NM; // "강남구", "송파구" 등
+          if (!guName) return;
+
+          if (!guDataMap.has(guName)) {
+            guDataMap.set(guName, { pm10Values: [], pm25Values: [], stationCount: 0 });
+          }
+
+          const guData = guDataMap.get(guName)!;
+          guData.stationCount++;
+
+          // PM10 (미세먼지)
+          const pm10 = parseFloat(row.PM);
+          if (!isNaN(pm10)) {
+            guData.pm10Values.push(pm10);
+          }
+
+          // PM2.5 (초미세먼지)
+          const pm25 = parseFloat(row.FPM);
+          if (!isNaN(pm25)) {
+            guData.pm25Values.push(pm25);
+          }
+        });
+
+        // 대기질 등급 판정 함수 (PM2.5 기준)
+        const getAirQualityLevel = (pm25: number): '좋음' | '보통' | '나쁨' | '매우나쁨' => {
+          if (pm25 <= 15) return '좋음';
+          if (pm25 <= 35) return '보통';
+          if (pm25 <= 75) return '나쁨';
+          return '매우나쁨';
+        };
+
+        // 구별 평균 계산
+        const indicatorValues: IndicatorValue[] = Array.from(guDataMap.entries()).map(([guName, data]) => {
+          const avgPm10 = data.pm10Values.length > 0
+            ? data.pm10Values.reduce((a, b) => a + b, 0) / data.pm10Values.length
+            : 0;
+
+          const avgPm25 = data.pm25Values.length > 0
+            ? data.pm25Values.reduce((a, b) => a + b, 0) / data.pm25Values.length
+            : 0;
+
+          const airQualityLevel = avgPm25 > 0 ? getAirQualityLevel(avgPm25) : '보통';
+
+          return {
+            gu: guName,
+            value: Math.round(avgPm25), // 주요 값은 PM2.5 평균으로 (지도 색상 표시용)
+            pm10: Math.round(avgPm10 * 10) / 10, // 소수점 1자리
+            pm25: Math.round(avgPm25 * 10) / 10, // 소수점 1자리
+            airQualityLevel,
+            stationCount: data.stationCount
+          };
+        });
+
+        console.log(`✅ 구 API 통합 완료: ${indicatorValues.length}개 구, 대기질 데이터 집계`);
+        console.log(`   - 예시: ${indicatorValues[0]?.gu} PM10=${indicatorValues[0]?.pm10}, PM2.5=${indicatorValues[0]?.pm25}, 측정소=${indicatorValues[0]?.stationCount}개`);
+        console.log(`   - 전체 구조 (처음 3개):`, indicatorValues.slice(0, 3));
+        if (collectedDataDate) {
+          console.log(`📅 데이터 기준일: ${collectedDataDate}`);
+        }
+
+        return indicatorValues;
+      }
+
+      // 대기질이 아닌 일반 데이터 처리
       const indicatorValues: IndicatorValue[] = fullData.rows.map((row: any) => {
         const guName = row.MSRSTN_NM; // "강남구", "송파구" 등
         // PM, FPM 등 여러 필드 중 첫 번째 숫자 값 사용
@@ -483,6 +773,7 @@ export async function loadIndicatorData(
 
     const promises = guApiMap.map(async ({ gu, id }) => {
       try {
+        console.log(`   - ${gu}: API ${id} 호출 중...`);
         const response = await fetch(`/api/seoul-data?serviceId=${id}&startIndex=1&endIndex=1`, {
           signal: AbortSignal.timeout(10000)
         });
@@ -491,11 +782,18 @@ export async function loadIndicatorData(
           throw new Error(`HTTP ${response.status}`);
         }
 
-        const data = await response.json();
+        let data;
+        try {
+          data = await response.json();
+        } catch (jsonError) {
+          // HTML 응답인 경우 (Sheet 타입 API)
+          console.log(`   ❌ ${gu}: JSON 파싱 실패 - Sheet 타입 API (${id})`);
+          return { gu, value: 0, dataDate: null, dataNote: 'Sheet API (JSON 미지원)' };
+        }
 
         if (!data.success) {
-          console.log(`   ❌ ${gu}: API 실패 (${id})`);
-          return { gu, value: 0, dataDate: null, dataNote: undefined };
+          console.log(`   ❌ ${gu}: API 실패 - ${data.error || '알 수 없는 오류'} (${id})`);
+          return { gu, value: 0, dataDate: null, dataNote: data.error };
         }
 
         // 1순위: totalCount (서울 API가 반환한 전체 개수)
@@ -583,6 +881,10 @@ export function mergeIndicatorToGeojson(
 ): any {
   const { spatial_grain, indicator_id } = metadata;
 
+  console.log('🔍 enrichGuGeojson 시작:');
+  console.log('   - indicatorData 샘플 (처음 3개):', indicatorData.slice(0, 3));
+  console.log('   - 첫 번째 데이터 구조:', indicatorData[0]);
+
   let matchCount = 0;
   let totalFeatures = 0;
 
@@ -602,6 +904,24 @@ export function mergeIndicatorToGeojson(
           if (index < 3) {
             console.log(`   🔗 매칭 ${index + 1}: "${featureGu}" → value: ${matchedValue}`);
           }
+
+          // 대기질 데이터 추가 필드 병합
+          if (dataPoint.pm10 !== undefined || dataPoint.pm25 !== undefined) {
+            if (index < 3) {
+              console.log(`   🌫️ 대기질 데이터 추가: PM10=${dataPoint.pm10}, PM2.5=${dataPoint.pm25}, 등급=${dataPoint.airQualityLevel}`);
+            }
+            return {
+              ...feature,
+              properties: {
+                ...feature.properties,
+                [indicator_id]: matchedValue,
+                pm10: dataPoint.pm10,
+                pm25: dataPoint.pm25,
+                airQualityLevel: dataPoint.airQualityLevel,
+                stationCount: dataPoint.stationCount,
+              },
+            };
+          }
         } else if (index < 3) {
           console.log(`   ❌ 매칭 실패 ${index + 1}: "${featureGu}" (데이터에서 찾을 수 없음)`);
         }
@@ -612,6 +932,12 @@ export function mergeIndicatorToGeojson(
 
         if (dataPoint) {
           matchCount++;
+          if (index < 3) {
+            console.log(`   🔗 매칭 ${index + 1}: "${featureDong}" → value: ${matchedValue}`);
+          }
+        } else if (index < 3) {
+          console.log(`   ❌ 매칭 실패 ${index + 1}: GeoJSON dong_name="${featureDong}", 데이터에서 찾을 수 없음`);
+          console.log(`      - 데이터 샘플 (처음 3개):`, indicatorData.slice(0, 3).map(d => d.dong));
         }
       }
 

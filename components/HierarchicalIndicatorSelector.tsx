@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { loadIndicatorCatalog, type IndicatorMetadata } from '@/utils/indicator-loader';
 import {
   groupIndicatorsByTopic,
@@ -27,12 +28,32 @@ export default function HierarchicalIndicatorSelector({
   // UI state
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [spatialFilter, setSpatialFilter] = useState<'all' | 'gu' | 'city'>('gu');
   const [isOpen, setIsOpen] = useState(false);
 
   // 2단계 선택 state
   const [selectedTopic, setSelectedTopic] = useState<IndicatorTopic | null>(null);
   const [showSubIndicators, setShowSubIndicators] = useState(false);
+
+  // Portal ref와 position state
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Client-side mount detection
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Calculate dropdown position when opened
+  useEffect(() => {
+    if (isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + 8, // 8px gap below button
+        left: rect.left,
+      });
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -87,14 +108,9 @@ export default function HierarchicalIndicatorSelector({
   const filteredTopics = useMemo(() => {
     let filtered = topics;
 
-    // Spatial filter (filterSpatialGrain prop이 있으면 우선 적용)
-    const effectiveSpatialFilter = filterSpatialGrain || spatialFilter;
-    if (effectiveSpatialFilter === 'gu') {
-      filtered = filtered.filter((t) => t.spatial_grain === 'gu' || t.spatial_grain === 'dong');
-    } else if (effectiveSpatialFilter === 'city') {
-      filtered = filtered.filter((t) => t.spatial_grain === 'city');
-    } else if (effectiveSpatialFilter === 'dong') {
-      filtered = filtered.filter((t) => t.spatial_grain === 'dong');
+    // Spatial filter (filterSpatialGrain prop 적용)
+    if (filterSpatialGrain) {
+      filtered = filtered.filter((t) => t.spatial_grain === filterSpatialGrain);
     }
 
     // Category filter
@@ -115,7 +131,7 @@ export default function HierarchicalIndicatorSelector({
 
     // Limit to 100 results
     return filtered.slice(0, 100);
-  }, [topics, spatialFilter, selectedCategory, searchQuery, filterSpatialGrain]);
+  }, [topics, selectedCategory, searchQuery, filterSpatialGrain]);
 
   // 선택된 지표 찾기
   const selectedIndicator = useMemo(() => {
@@ -164,83 +180,56 @@ export default function HierarchicalIndicatorSelector({
     <div className="relative">
       {/* Selected Indicator Display / Trigger Button */}
       <button
+        ref={buttonRef}
         onClick={() => setIsOpen(!isOpen)}
-        className="px-4 py-2 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-left min-w-[250px]"
+        className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-md shadow-sm hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-left min-w-[250px]"
         disabled={isLoading}
       >
         {isLoading ? (
-          <span className="text-gray-400">지표 로딩 중...</span>
+          <span className="text-gray-500">지표 로딩 중...</span>
         ) : selectedIndicator ? (
           <div className="flex flex-col">
-            <span className="text-sm font-medium text-gray-900">
+            <span className="text-sm font-medium text-white">
               {selectedIndicator.topic.category} &gt; {selectedIndicator.topic.topic_name}
             </span>
-            <span className="text-xs text-gray-500 truncate">
+            <span className="text-xs text-gray-400 truncate">
               {selectedIndicator.indicator.description}
             </span>
           </div>
         ) : (
-          <span className="text-gray-500">지표 선택 ({topics.length.toLocaleString()}개 주제)</span>
+          <span className="text-gray-400">지표 선택 ({topics.length.toLocaleString()}개 주제)</span>
         )}
       </button>
 
-      {/* Dropdown Panel */}
-      {isOpen && !isLoading && (
-        <div className="absolute z-20 mt-2 w-[500px] bg-white border border-gray-300 rounded-lg shadow-lg max-h-96 flex flex-col">
+      {/* Dropdown Panel - Rendered via Portal */}
+      {isOpen && !isLoading && isMounted && createPortal(
+        <div
+          className="fixed z-[9999] w-[500px] bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-h-96 flex flex-col"
+          style={{
+            top: `${dropdownPosition.top}px`,
+            left: `${dropdownPosition.left}px`,
+          }}
+        >
           {!showSubIndicators ? (
             // 1단계: 주제 선택
             <>
               {/* Search and Filter Controls */}
-              <div className="p-3 border-b border-gray-200 space-y-2">
+              <div className="p-3 border-b border-gray-700 space-y-2">
                 {/* Search Input */}
                 <input
                   type="text"
                   placeholder="주제 검색..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   autoFocus
                 />
-
-                {/* Spatial Filter */}
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setSpatialFilter('all')}
-                    className={`flex-1 px-3 py-2 text-xs font-medium rounded-md transition ${
-                      spatialFilter === 'all'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    전체
-                  </button>
-                  <button
-                    onClick={() => setSpatialFilter('gu')}
-                    className={`flex-1 px-3 py-2 text-xs font-medium rounded-md transition ${
-                      spatialFilter === 'gu'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    구별 데이터
-                  </button>
-                  <button
-                    onClick={() => setSpatialFilter('city')}
-                    className={`flex-1 px-3 py-2 text-xs font-medium rounded-md transition ${
-                      spatialFilter === 'city'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    시별 데이터
-                  </button>
-                </div>
 
                 {/* Category Filter */}
                 <select
                   value={selectedCategory}
                   onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">전체 카테고리</option>
                   {categories.map((category) => (
@@ -254,39 +243,39 @@ export default function HierarchicalIndicatorSelector({
               {/* Topics List */}
               <div className="flex-1 overflow-y-auto">
                 {filteredTopics.length === 0 ? (
-                  <div className="p-4 text-center text-gray-500 text-sm">
+                  <div className="p-4 text-center text-gray-400 text-sm">
                     검색 결과가 없습니다
                   </div>
                 ) : (
-                  <div className="divide-y divide-gray-100">
+                  <div className="divide-y divide-gray-700">
                     {filteredTopics.map((topic) => (
                       <button
                         key={topic.topic_id}
                         onClick={() => handleTopicClick(topic)}
-                        className="w-full px-4 py-3 text-left hover:bg-blue-50 transition group"
+                        className="w-full px-4 py-3 text-left hover:bg-gray-700 transition group"
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-gray-900">
+                              <span className="text-sm font-medium text-white">
                                 {topic.category} &gt; {topic.topic_name}
                               </span>
                               {topic.sub_indicators.length > 1 && (
-                                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                <span className="text-xs bg-blue-900/50 text-blue-400 px-2 py-0.5 rounded-full">
                                   {topic.sub_indicators.length}개
                                 </span>
                               )}
-                              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                              <span className="text-xs bg-gray-700 text-gray-400 px-2 py-0.5 rounded">
                                 {topic.spatial_grain}
                               </span>
                             </div>
-                            <span className="text-xs text-gray-500 mt-1 block line-clamp-1">
+                            <span className="text-xs text-gray-400 mt-1 block line-clamp-1">
                               {topic.description.split('|')[1]?.trim() || topic.description}
                             </span>
                           </div>
                           {topic.sub_indicators.length > 1 && (
                             <svg
-                              className="w-5 h-5 text-gray-400 group-hover:text-gray-600"
+                              className="w-5 h-5 text-gray-500 group-hover:text-gray-400"
                               fill="none"
                               stroke="currentColor"
                               viewBox="0 0 24 24"
@@ -306,8 +295,8 @@ export default function HierarchicalIndicatorSelector({
                 )}
 
                 {/* Results Count Footer */}
-                <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-4 py-2">
-                  <p className="text-xs text-gray-600">
+                <div className="sticky bottom-0 bg-gray-900 border-t border-gray-700 px-4 py-2">
+                  <p className="text-xs text-gray-400">
                     {filteredTopics.length === 100
                       ? '상위 100개 결과 표시 (검색어를 더 구체화하세요)'
                       : `${filteredTopics.length.toLocaleString()}개 주제`}
@@ -319,10 +308,10 @@ export default function HierarchicalIndicatorSelector({
             // 2단계: 세부 지표 선택
             <>
               {/* Header with Back Button */}
-              <div className="p-3 border-b border-gray-200">
+              <div className="p-3 border-b border-gray-700">
                 <button
                   onClick={handleBack}
-                  className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-2"
+                  className="flex items-center gap-2 text-sm text-gray-400 hover:text-white mb-2"
                 >
                   <svg
                     className="w-4 h-4"
@@ -339,30 +328,30 @@ export default function HierarchicalIndicatorSelector({
                   </svg>
                   뒤로 가기
                 </button>
-                <h3 className="text-sm font-semibold text-gray-900">
+                <h3 className="text-sm font-semibold text-white">
                   {selectedTopic?.topic_name}
                 </h3>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-gray-400 mt-1">
                   {selectedTopic?.description}
                 </p>
               </div>
 
               {/* Sub-Indicators List */}
               <div className="flex-1 overflow-y-auto">
-                <div className="divide-y divide-gray-100">
+                <div className="divide-y divide-gray-700">
                   {selectedTopic?.sub_indicators.map((indicator) => (
                     <button
                       key={indicator.indicator_id}
                       onClick={() => handleSubIndicatorClick(indicator)}
-                      className={`w-full px-4 py-3 text-left hover:bg-blue-50 transition ${
-                        indicator.indicator_id === selectedIndicatorId ? 'bg-blue-100' : ''
+                      className={`w-full px-4 py-3 text-left hover:bg-gray-700 transition ${
+                        indicator.indicator_id === selectedIndicatorId ? 'bg-gray-700' : ''
                       }`}
                     >
                       <div className="flex flex-col">
-                        <span className="text-sm font-medium text-gray-900">
+                        <span className="text-sm font-medium text-white">
                           {indicator.description}
                         </span>
-                        <span className="text-xs text-gray-500 mt-1">
+                        <span className="text-xs text-gray-400 mt-1">
                           {indicator.metric_type} • {indicator.spatial_grain}
                         </span>
                       </div>
@@ -372,19 +361,21 @@ export default function HierarchicalIndicatorSelector({
               </div>
             </>
           )}
-        </div>
+        </div>,
+        document.body
       )}
 
-      {/* Click outside to close */}
-      {isOpen && (
+      {/* Click outside to close - Also rendered via Portal */}
+      {isOpen && isMounted && createPortal(
         <div
-          className="fixed inset-0 z-10"
+          className="fixed inset-0 z-[9998]"
           onClick={() => {
             setIsOpen(false);
             setShowSubIndicators(false);
             setSelectedTopic(null);
           }}
-        />
+        />,
+        document.body
       )}
     </div>
   );

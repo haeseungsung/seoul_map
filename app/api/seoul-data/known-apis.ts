@@ -14,6 +14,7 @@ export interface KnownApiConfig {
   hasData: boolean;     // 실제 데이터 제공 여부
   spatialType?: 'point' | 'gu' | 'dong' | 'none'; // 공간정보 타입
   dongField?: string;   // 행정동 필드명 (spatialType='dong'인 경우)
+  unit?: string;        // 단위 (예: '명', '개', '%')
 }
 
 export const KNOWN_WORKING_APIS: KnownApiConfig[] = [
@@ -60,6 +61,7 @@ export const KNOWN_WORKING_APIS: KnownApiConfig[] = [
     hasData: true,
     spatialType: 'dong',
     dongField: 'ADSTRD_CODE_SE', // 행정동 코드 또는 이름 필드
+    unit: '명', // 생활인구 단위
   },
   // 서울시 전체(city-level) 데이터 - 지도 시각화 불가
   {

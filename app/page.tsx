@@ -4,6 +4,11 @@ import { useState, useEffect } from 'react';
 import MapContainer from '@/components/MapContainer';
 import HierarchicalIndicatorSelector from '@/components/HierarchicalIndicatorSelector';
 import DetailPanel from '@/components/DetailPanel';
+import TimeSlider from '@/components/TimeSlider';
+import AirQualityComparePanel from '@/components/AirQualityComparePanel';
+import LandingHero from '@/components/LandingHero';
+import RankingSidebar from '@/components/RankingSidebar';
+import OnboardingTour from '@/components/OnboardingTour';
 import {
   loadIndicatorData,
   mergeIndicatorToGeojson,
@@ -25,16 +30,31 @@ export type IndicatorType =
 
 type ViewMode = 'dong' | 'gu' | 'city';
 
-export default function Home() {
-  // 뷰 모드: 행정동(CSV) vs 구(API) vs 시 전체(API)
-  const [viewMode, setViewMode] = useState<ViewMode>('dong');
+/**
+ * 생활인구 지표인지 확인
+ */
+function isLivingPopulation(indicator: IndicatorMetadata): boolean {
+  return indicator.indicator_id.includes('OA-14991') ||
+         indicator.indicator_id.includes('생활인구') ||
+         indicator.indicator_name.includes('생활인구');
+}
 
-  // 행정동 모드 state
+export default function Home() {
+  // 랜딩 페이지 state
+  const [showLanding, setShowLanding] = useState(true);
+
+  // 온보딩 투어 state
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // 뷰 모드: 행정동(CSV) vs 구(API) vs 시 전체(API)
+  const [viewMode, setViewMode] = useState<ViewMode>('gu'); // 기본값을 구 모드로 변경
+
+  // 행정동 모드 state (CSV 전용)
   const [selectedDistrict, setSelectedDistrict] = useState<any>(null);
   const [selectedIndicator, setSelectedIndicator] =
     useState<IndicatorType>('population');
 
-  // 구 모드 state
+  // API 지표 state (구/행정동/시 전체 공통)
   const [selectedGuIndicator, setSelectedGuIndicator] = useState<IndicatorMetadata | null>(null);
   const [isLoadingGuIndicator, setIsLoadingGuIndicator] = useState(false);
   const [guGeojsonData, setGuGeojsonData] = useState<any>(null); // 구 GeoJSON (지표 데이터 병합됨)
@@ -43,9 +63,19 @@ export default function Home() {
   // 시 전체 모드 state
   const [cityData, setCityData] = useState<{ value: number; description: string; totalRows?: number } | null>(null);
 
+  // 시간대 필터 state (생활인구 전용)
+  const [selectedTimeHour, setSelectedTimeHour] = useState<number | null>(null);
+
   // 공통
   const [geojsonData, setGeojsonData] = useState<any>(null);
   const [baseGeojsonData, setBaseGeojsonData] = useState<any>(null); // 원본 GeoJSON
+
+  console.log('📊 page.tsx 상태:', {
+    viewMode,
+    selectedIndicator: selectedIndicator,
+    selectedGuIndicator: selectedGuIndicator?.indicator_id,
+    hasGeojsonData: !!geojsonData,
+  });
 
   // MapContainer에서 enriched geojson을 받아옴 (행정동)
   const handleGeojsonLoad = (enrichedGeojson: any) => {
@@ -76,6 +106,37 @@ export default function Home() {
     }
   }, [viewMode, baseGuGeojsonData]);
 
+  // 앱 시작 시 대기질 지표 자동 로드
+  useEffect(() => {
+    if (viewMode === 'gu' && !selectedGuIndicator && baseGuGeojsonData) {
+      // 대기질 지표 자동 로드
+      const airQualityIndicator: IndicatorMetadata = {
+        family: '환경_정보',
+        indicator_id: '환경_정보_대기오염_OA-2219',
+        indicator_name: '대기오염',
+        metric_type: 'avg',
+        spatial_grain: 'gu',
+        source_pattern: 'MULTI_GU:all',
+        value_field: '',
+        aggregation_method: JSON.stringify([{ gu: 'all', id: 'OA-2219' }]),
+        description: '서울시 권역별 실시간 대기환경 현황'
+      };
+
+      console.log('🌫️ 앱 시작: 대기질 지표 자동 로드');
+      handleGuIndicatorSelect(airQualityIndicator);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, baseGuGeojsonData]);
+
+  // 시간대 변경 시 생활인구 데이터 다시 로드
+  useEffect(() => {
+    if (selectedGuIndicator && isLivingPopulation(selectedGuIndicator)) {
+      console.log(`⏰ 시간대 변경 감지 (${selectedTimeHour === null ? '전체' : selectedTimeHour + '시'}) - 데이터 재로드`);
+      handleGuIndicatorSelect(selectedGuIndicator);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTimeHour]);
+
   // 구/시 전체 지표 선택 핸들러
   const handleGuIndicatorSelect = async (indicator: IndicatorMetadata) => {
     setSelectedGuIndicator(indicator);
@@ -90,7 +151,11 @@ export default function Home() {
       // City-level 지표인 경우
       if (indicator.spatial_grain === 'city') {
         console.log('🏙️ 서울시 전체 데이터 로드');
-        const indicatorData = await loadIndicatorData(indicator);
+        // 시간대 옵션 전달 (생활인구인 경우)
+        const options = isLivingPopulation(indicator) && selectedTimeHour !== null
+          ? { timeHour: selectedTimeHour }
+          : undefined;
+        const indicatorData = await loadIndicatorData(indicator, options);
 
         if (indicatorData.length > 0 && indicatorData[0].gu === 'seoul') {
           setCityData({
@@ -120,8 +185,11 @@ export default function Home() {
           console.log('✅ 행정동 GeoJSON 로드 완료');
         }
 
-        // 지표 데이터 로드
-        const indicatorData = await loadIndicatorData(indicator);
+        // 지표 데이터 로드 (시간대 옵션 전달)
+        const options = isLivingPopulation(indicator) && selectedTimeHour !== null
+          ? { timeHour: selectedTimeHour }
+          : undefined;
+        const indicatorData = await loadIndicatorData(indicator, options);
 
         // 값이 모두 0인지 확인
         const allZero = indicatorData.every(v => v.value === 0);
@@ -140,6 +208,8 @@ export default function Home() {
         console.log('✅ 지표 데이터를 행정동 지도에 병합 완료');
         console.log('   - indicator_id:', indicator.indicator_id);
         console.log('   - 데이터 개수:', indicatorData.length);
+        console.log('   - 첫 번째 feature properties:', mergedDongGeojson.features[0]?.properties);
+        console.log('📤 page.tsx → MapContainer에 dongGeojsonData 전달 (행정동 API 데이터)');
 
         setIsLoadingGuIndicator(false);
         return;
@@ -155,12 +225,15 @@ export default function Home() {
         console.log('✅ 구 GeoJSON 로드 완료');
       }
 
-      // 1. 지표 데이터 로드 (25개 구 병합)
-      const indicatorData = await loadIndicatorData(indicator);
+      // 1. 지표 데이터 로드 (25개 구 병합, 시간대 옵션 전달)
+      const options = isLivingPopulation(indicator) && selectedTimeHour !== null
+        ? { timeHour: selectedTimeHour }
+        : undefined;
+      const indicatorData = await loadIndicatorData(indicator, options);
 
       console.log('📊 로드된 지표 데이터 샘플 (처음 3개):');
       indicatorData.slice(0, 3).forEach(d => {
-        console.log(`   - gu: "${d.gu}", value: ${d.value}`);
+        console.log(`   - gu: "${d.gu}", value: ${d.value}, 전체 데이터:`, d);
       });
 
       // 값이 모두 0인지 확인
@@ -207,28 +280,58 @@ export default function Home() {
     { value: 'female_ratio', label: '여자 비율 (%)' },
   ] as const;
 
+  // 랜딩 히어로 닫기 핸들러
+  const handleStartMap = () => {
+    setShowLanding(false);
+    // 랜딩 닫은 후 약간의 딜레이를 주고 온보딩 시작
+    setTimeout(() => {
+      setShowOnboarding(true);
+    }, 500);
+  };
+
+  // 온보딩 완료 핸들러
+  const handleOnboardingComplete = () => {
+    setShowOnboarding(false);
+  };
+
   return (
     <main className="relative w-full h-screen overflow-hidden">
-      {/* 헤더 */}
-      <div className="absolute top-0 left-0 right-0 z-10 bg-white shadow-md">
-        <div className="px-6 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">
-              서울시 행정동 인터랙티브 지도
-            </h1>
-            <p className="text-xs text-gray-500 mt-1">
-              데이터 기준: 2025년 3/4분기 등록인구
-            </p>
+      {/* 랜딩 히어로 */}
+      {showLanding && <LandingHero onStart={handleStartMap} />}
+
+      {/* 헤더 - 사이드바 공간 제외 */}
+      <div className="absolute top-0 left-0 right-0 z-[5] bg-gray-900 border-b border-gray-800 shadow-xl overflow-visible">
+        <div className="px-6 py-4 flex items-center justify-between overflow-visible">
+          <div className="flex-1">
+            {selectedGuIndicator ? (
+              <>
+                <h1 className="text-lg font-bold text-white">
+                  {selectedGuIndicator.description || selectedGuIndicator.indicator_name}
+                </h1>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  주제: {selectedGuIndicator.indicator_name} • 출처: 서울열린데이터광장
+                </p>
+              </>
+            ) : (
+              <>
+                <h1 className="text-lg font-bold text-white">
+                  서울 열린데이터광장
+                </h1>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  지표를 선택하여 서울시 오픈데이터를 시각화하세요
+                </p>
+              </>
+            )}
           </div>
           <div className="flex gap-3 items-center">
             {/* 공간 단위 선택 */}
-            <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
+            <div className="view-mode-selector flex items-center gap-2 bg-gray-800 rounded-lg p-1">
               <button
                 onClick={() => setViewMode('city')}
                 className={`px-3 py-1.5 text-sm font-medium rounded-md transition ${
                   viewMode === 'city'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-gray-400 hover:text-white'
                 }`}
               >
                 시 전체
@@ -237,8 +340,8 @@ export default function Home() {
                 onClick={() => setViewMode('gu')}
                 className={`px-3 py-1.5 text-sm font-medium rounded-md transition ${
                   viewMode === 'gu'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-gray-400 hover:text-white'
                 }`}
               >
                 구 단위
@@ -247,60 +350,222 @@ export default function Home() {
                 onClick={() => setViewMode('dong')}
                 className={`px-3 py-1.5 text-sm font-medium rounded-md transition ${
                   viewMode === 'dong'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-gray-400 hover:text-white'
                 }`}
               >
                 행정동 단위
               </button>
             </div>
 
-            {/* 통합 지표 선택 */}
-            <HierarchicalIndicatorSelector
-              onIndicatorSelect={handleGuIndicatorSelect}
-              selectedIndicatorId={selectedGuIndicator?.indicator_id}
-              filterSpatialGrain={viewMode}
-            />
-            {isLoadingGuIndicator && (
-              <div className="flex items-center gap-2 text-sm text-blue-600">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                <span>지표 로딩 중...</span>
-              </div>
+            {/* 행정동 모드 - API 지표 선택만 */}
+            {viewMode === 'dong' && (
+              <>
+                <div className="indicator-selector">
+                  <HierarchicalIndicatorSelector
+                    onIndicatorSelect={handleGuIndicatorSelect}
+                    selectedIndicatorId={selectedGuIndicator?.indicator_id}
+                    filterSpatialGrain={viewMode}
+                  />
+                </div>
+                {isLoadingGuIndicator && (
+                  <div className="flex items-center gap-2 text-sm text-blue-600">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    <span>지표 로딩 중...</span>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* 구/시 모드 - 통합 지표 선택 */}
+            {(viewMode === 'gu' || viewMode === 'city') && (
+              <>
+                <div className="indicator-selector">
+                  <HierarchicalIndicatorSelector
+                    onIndicatorSelect={handleGuIndicatorSelect}
+                    selectedIndicatorId={selectedGuIndicator?.indicator_id}
+                    filterSpatialGrain={viewMode}
+                  />
+                </div>
+                {isLoadingGuIndicator && (
+                  <div className="flex items-center gap-2 text-sm text-blue-600">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    <span>지표 로딩 중...</span>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
+
+        {/* 시간대 슬라이더 (생활인구일 때만) */}
+        {selectedGuIndicator && isLivingPopulation(selectedGuIndicator) && (
+          <div className="px-6 pb-4">
+            <TimeSlider
+              value={selectedTimeHour}
+              onChange={setSelectedTimeHour}
+              disabled={isLoadingGuIndicator}
+            />
+          </div>
+        )}
       </div>
 
       {/* 지도 컨테이너 */}
-      <div className="absolute inset-0 pt-16">
+      <div className="map-container absolute inset-0 pt-16">
         <MapContainer
           onDistrictClick={handleDistrictClick}
           selectedIndicator={
-            viewMode === 'dong'
-              ? selectedIndicator
-              : (selectedGuIndicator?.indicator_id as any) || 'placeholder'
+            // API 지표가 선택되었으면 indicator_id 사용, 없으면 CSV 지표 사용
+            selectedGuIndicator?.indicator_id ||
+            (viewMode === 'dong' ? selectedIndicator : 'placeholder')
           }
           onGeojsonLoad={handleGeojsonLoad}
           viewMode={viewMode}
           guGeojsonData={guGeojsonData}
+          dongGeojsonData={viewMode === 'dong' ? geojsonData : undefined}
           cityData={viewMode === 'city' ? cityData || undefined : undefined}
         />
       </div>
 
+      {/* 온보딩 투어 */}
+      <OnboardingTour isActive={showOnboarding} onComplete={handleOnboardingComplete} />
+
+      {/* RankingSidebar - 모든 구 단위 지표에 대한 TOP 3 / BOTTOM 3 */}
+      {guGeojsonData && viewMode === 'gu' && selectedGuIndicator && !selectedDistrict && (() => {
+        const isAirQuality = selectedGuIndicator.indicator_id.includes('환경_정보');
+        const indicatorId = selectedGuIndicator.indicator_id;
+
+        // 대기질 데이터인 경우
+        if (isAirQuality) {
+          const excludedGu = ['은평구', '송파구', '구로구']; // 데이터 없는 구
+          const allGuData = guGeojsonData.features
+            .filter((f: any) => {
+              const guName = f.properties.gu_name || f.properties.SIG_KOR_NM || '';
+              return f.properties?.pm25 !== undefined &&
+                     f.properties?.pm25 > 0 &&
+                     !excludedGu.includes(guName);
+            })
+            .map((f: any) => ({
+              gu_name: f.properties.gu_name || f.properties.SIG_KOR_NM || '',
+              value: f.properties.pm25 || 0,
+              displayValue: f.properties.airQualityLevel || '보통',
+            }));
+
+          const handleGuClick = (guName: string) => {
+            const feature = guGeojsonData.features.find(
+              (f: any) => f.properties?.gu_name === guName || f.properties?.SIG_KOR_NM === guName
+            );
+            if (feature) {
+              setSelectedDistrict(feature.properties);
+            }
+          };
+
+          return (
+            <RankingSidebar
+              allGuData={allGuData}
+              onGuClick={handleGuClick}
+              indicatorName="PM2.5"
+              unit="μg/m³"
+              isAirQuality={true}
+            />
+          );
+        }
+
+        // 일반 지표 데이터 (생활인구, 업종 등)
+        const allGuData = guGeojsonData.features
+          .filter((f: any) => f.properties?.[indicatorId] !== undefined && f.properties?.[indicatorId] > 0)
+          .map((f: any) => ({
+            gu_name: f.properties.gu_name || f.properties.SIG_KOR_NM || '',
+            value: f.properties[indicatorId] || 0,
+          }));
+
+        if (allGuData.length === 0) return null;
+
+        const handleGuClick = (guName: string) => {
+          const feature = guGeojsonData.features.find(
+            (f: any) => f.properties?.gu_name === guName || f.properties?.SIG_KOR_NM === guName
+          );
+          if (feature) {
+            setSelectedDistrict(feature.properties);
+          }
+        };
+
+        // 단위 추출
+        const getUnit = () => {
+          if (selectedGuIndicator.indicator_name.includes('생활인구') || selectedGuIndicator.indicator_name.includes('인구')) {
+            return '명';
+          }
+          return '개';
+        };
+
+        return (
+          <RankingSidebar
+            allGuData={allGuData}
+            onGuClick={handleGuClick}
+            indicatorName={selectedGuIndicator.indicator_name}
+            unit={getUnit()}
+            isAirQuality={false}
+          />
+        );
+      })()}
+
+      {/* AirQualityComparePanel - 구 단위 대기질 비교 */}
+      {selectedDistrict && guGeojsonData && viewMode === 'gu' && selectedGuIndicator?.indicator_id.includes('환경_정보') && (() => {
+        const guName = selectedDistrict.gu_name || selectedDistrict.SIG_KOR_NM || '알 수 없음';
+        const pm10 = selectedDistrict.pm10 || 0;
+        const pm25 = selectedDistrict.pm25 || 0;
+        const airQualityLevel = selectedDistrict.airQualityLevel || '보통';
+        const stationCount = selectedDistrict.stationCount || 0;
+
+        // 모든 구의 대기질 데이터 추출
+        const allGuData = guGeojsonData.features
+          .filter((f: any) => f.properties?.pm25 !== undefined && f.properties?.pm25 > 0)
+          .map((f: any) => ({
+            gu_name: f.properties.gu_name || f.properties.SIG_KOR_NM || '',
+            pm10: f.properties.pm10 || 0,
+            pm25: f.properties.pm25 || 0,
+            airQualityLevel: f.properties.airQualityLevel || '보통',
+            stationCount: f.properties.stationCount || 0,
+          }));
+
+        console.log('🌫️ 대기질 패널 데이터:', {
+          선택된구: guName,
+          PM25: pm25,
+          등급: airQualityLevel,
+          전체구수: allGuData.length,
+        });
+
+        return (
+          <AirQualityComparePanel
+            guName={guName}
+            pm10={pm10}
+            pm25={pm25}
+            airQualityLevel={airQualityLevel as any}
+            stationCount={stationCount}
+            allGuData={allGuData}
+            onClose={() => setSelectedDistrict(null)}
+          />
+        );
+      })()}
+
       {/* DetailPanel - 선택된 행정동 정보 및 비교 */}
-      {selectedDistrict && geojsonData && (() => {
+      {selectedDistrict && geojsonData && viewMode === 'dong' && (() => {
         const fullName = selectedDistrict.adm_nm || '';
         const parts = fullName.split(' ');
         const guName = selectedDistrict.gu_name || parts[1] || '';
         const districtName = selectedDistrict.dong_name || parts[parts.length - 1] || '';
-        const districtValue = selectedDistrict[selectedIndicator] || 0;
-        const seoulAvg = calculateSeoulAverage(geojsonData, selectedIndicator);
-        const guAvg = calculateGuAverage(geojsonData, guName, selectedIndicator);
-        const comparison = calculateComparison(districtValue, seoulAvg, guAvg, selectedIndicator);
+
+        // API 지표가 선택되었으면 indicator_id 사용, 아니면 CSV 지표 사용
+        const currentIndicator = selectedGuIndicator?.indicator_id || selectedIndicator;
+        const districtValue = selectedDistrict[currentIndicator] || 0;
+        const seoulAvg = calculateSeoulAverage(geojsonData, currentIndicator as any);
+        const guAvg = calculateGuAverage(geojsonData, guName, currentIndicator as any);
+        const comparison = calculateComparison(districtValue, seoulAvg, guAvg, currentIndicator as any);
 
         console.log('🔍 DetailPanel 디버그:', {
           선택된행정동: districtName,
           구이름: guName,
+          현재지표: currentIndicator,
           구평균: guAvg,
           행정동값: districtValue,
           비교결과: comparison,
@@ -317,7 +582,7 @@ export default function Home() {
             guDiff={comparison.guDiff}
             seoulMessage={comparison.seoulMessage}
             guMessage={comparison.guMessage}
-            indicator={selectedIndicator}
+            indicator={currentIndicator as any}
             onClose={() => setSelectedDistrict(null)}
           />
         );

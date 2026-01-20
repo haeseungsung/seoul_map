@@ -22,7 +22,21 @@ export interface IndicatorConfig {
  * @param indicator - 표시할 지표 타입
  * @returns 지표별 색상 설정 객체
  */
-export function getIndicatorConfig(indicator: IndicatorType): IndicatorConfig {
+export function getIndicatorConfig(indicator: IndicatorType | string): IndicatorConfig {
+  // API ID에서 단위 추출 시도 (known-apis.ts 참고)
+  const getUnitFromIndicatorId = (indicatorId: string): string => {
+    // OA-14991 (생활인구) → '명'
+    if (indicatorId.includes('OA-14991') || indicatorId.includes('생활인구') || indicatorId.includes('LVPOP')) {
+      return '명';
+    }
+    // OA-2219 (대기질) → 'μg/m³'
+    if (indicatorId.includes('OA-2219') || indicatorId.includes('환경_정보')) {
+      return 'μg/m³';
+    }
+    // 기본값
+    return '개';
+  };
+
   switch (indicator) {
     case 'population':
       return {
@@ -123,6 +137,43 @@ export function getIndicatorConfig(indicator: IndicatorType): IndicatorConfig {
           [51, '#fbcfe8'],      // 51%
           [53, '#f9a8d4'],      // 53%
           [55, '#f472b6'],      // 55% 이상
+        ],
+      };
+
+    default:
+      // Handle API indicators (string IDs)
+      const unit = getUnitFromIndicatorId(indicator as string);
+
+      // 환경_정보 (대기질 데이터) 특별 처리
+      if ((indicator as string).includes('환경_정보') || (indicator as string).includes('OA-2219')) {
+        return {
+          property: indicator as string,
+          label: '대기질 (PM2.5 기준)',
+          unit: unit,
+          stops: [
+            [0, '#e5e7eb'],      // 데이터 없음 - 회색
+            [1, '#34d399'],      // 좋음 (0-15) - 초록
+            [16, '#fbbf24'],     // 보통 (16-35) - 노랑
+            [36, '#fb923c'],     // 나쁨 (36-75) - 주황
+            [76, '#ef4444'],     // 매우나쁨 (76+) - 빨강
+          ],
+        };
+      }
+
+      return {
+        property: indicator as string,
+        label: indicator as string,
+        unit: unit,
+        stops: [
+          [0, '#f3f4f6'],
+          [1, '#dbeafe'],
+          [3, '#bfdbfe'],
+          [5, '#93c5fd'],
+          [10, '#60a5fa'],
+          [20, '#3b82f6'],
+          [50, '#2563eb'],
+          [100, '#1d4ed8'],
+          [500, '#1e3a8a'],
         ],
       };
   }

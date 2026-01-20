@@ -116,6 +116,16 @@ function extractEntityType(name: string): string {
     '도로': ['도로', '가로', '골목'],
     '시설': ['시설물', '공공시설'],
     '대기오염': ['대기오염', '대기환경', '미세먼지', '초미세먼지', '오존', '이산화질소'],
+    '와이파이': ['공공와이파이', '와이파이', 'WiFi', 'wifi'],
+    'CCTV': ['CCTV', '안심이', 'cctv'],
+    '생활인구': ['생활인구'],
+    '통계': ['통계', '조사'],
+    // 문화/관광 관련 entity 추가
+    '게임업': ['게임물제작업', '게임물배급업', '복합유통게임제공업', '청소년게임제공업', '일반게임제공업', '인터넷컴퓨터게임시설제공업'],
+    '영화업': ['영화상영관', '영화상영업', '영화제작업', '영화배급업', '영화수입업', '복합영상물제공업'],
+    '음반업': ['음반.음악영상물제작업', '음반·비디오물·게임물판매업', '비디오물감상실업', '비디오물배급업'],
+    '공연장': ['공연장', '노래연습장업', '노래연습장'],
+    '예술업': ['대중문화예술기획업', '공연기획업'],
   };
 
   // 1순위: 동의어 매칭 (가장 긴 매칭)
@@ -199,11 +209,19 @@ export function groupApisByTopic(apiCatalog: SeoulApiService[]): IndicatorTopic[
     console.log(`   - OA-15526 정보:`, oa15526);
   }
 
+  // 지도 시각화에 적합하지 않은 엔티티 타입 필터링
+  const excludedEntityTypes = ['공지사항', '채용', '민원', '예약'];
+
   apiCatalog.forEach(api => {
     const rawMapCategory = api.mapCategory || api.category;
     const mapCategory = normalizeMapCategory(rawMapCategory);
     const taskType = extractTaskType(api.name);
     const entityType = extractEntityType(api.name);
+
+    // 제외 대상 엔티티 타입이면 스킵
+    if (excludedEntityTypes.includes(entityType)) {
+      return;
+    }
 
     // LayerKey = mapCategory/taskType/entityType
     const key = `${mapCategory}/${taskType}/${entityType}`;
@@ -283,7 +301,16 @@ export function groupApisByTopic(apiCatalog: SeoulApiService[]): IndicatorTopic[
             unknownApis.push(api);
           }
         } else {
-          unknownApis.push(api);
+          // Unknown API: 이름으로 구별 vs 전체 판단
+          // "서울시 강남구 ..." → 구별 API
+          // "서울시 공공와이파이 ..." (구이름 없음) → 전체 API
+          const hasGuName = /서울(시)?\s+\S+구\s+/.test(api.name);
+          if (hasGuName) {
+            unknownApis.push(api);
+          } else {
+            // 구이름이 없으면 전체 API로 추정
+            cityApis.push(api);
+          }
         }
       });
 
@@ -345,7 +372,16 @@ export function groupApisByTopic(apiCatalog: SeoulApiService[]): IndicatorTopic[
       // Unknown APIs 처리 (개수로 판단)
       if (unknownApis.length >= 20) {
         // 20개 이상이면 구별 데이터로 추정
-        const suffix = `${unknownApis.length}개 구 통합`;
+        // 실제 구 개수 계산 (중복 제거)
+        const guSet = new Set(unknownApis.map(a => a.name.match(/(\S+구)/)?.[1]).filter(Boolean));
+        const actualGuCount = guSet.size;
+        const suffix = actualGuCount > 0 ? `${actualGuCount}개 구 통합` : `${unknownApis.length}개 API`;
+
+        const guApiMapping = unknownApis.map(a => ({ gu: a.name.match(/(\S+구)/)?.[1], id: a.id }));
+
+        console.log(`✅ 구별 지표 생성: ${mapCategory}/${taskType}/${entityType} (${unknownApis.length}개 API)`);
+        console.log(`   - 구 매핑 샘플 (처음 3개):`, guApiMapping.slice(0, 3));
+
         subIndicators.push({
           family: mapCategory,
           indicator_id: `${mapCategory}_${taskType}_${entityType}`,
@@ -355,13 +391,11 @@ export function groupApisByTopic(apiCatalog: SeoulApiService[]): IndicatorTopic[
           source_pattern: `MULTI_GU:${taskType} - ${entityType}`,
           value_field: '',
           description: `${entityType} (${suffix})`,
-          aggregation_method: JSON.stringify(
-            unknownApis.map(a => ({ gu: a.name.match(/(\S+구)/)?.[1], id: a.id }))
-          ),
+          aggregation_method: JSON.stringify(guApiMapping),
         } as IndicatorMetadata);
       } else if (unknownApis.length > 0) {
         // 알 수 없는 API들은 제외
-        console.log(`⏭️  ${unknownApis[0].name} (${unknownApis[0].id}) - spatial 타입을 알 수 없어 제외`);
+        console.log(`⏭️  ${unknownApis[0].name} (${unknownApis[0].id}) - spatial 타입을 알 수 없어 제외 (${unknownApis.length}개 API만 있음)`);
       }
 
     });
