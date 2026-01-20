@@ -730,6 +730,7 @@ export async function loadIndicatorData(
           stationCount: number
         }>();
 
+        let isFirstRow = true;
         fullData.rows.forEach((row: any) => {
           const guName = row.MSRSTN_NM; // "강남구", "송파구" 등
           if (!guName) return;
@@ -773,8 +774,8 @@ export async function loadIndicatorData(
             guData.no2Values.push(no2);
           }
 
-          // CO (일산화탄소) - ppm
-          const co = parseFloat(row.CRST_SBSTN);
+          // CO (일산화탄소) - ppm (CBMX 필드 사용)
+          const co = parseFloat(row.CBMX);
           if (!isNaN(co)) {
             guData.coValues.push(co);
           }
@@ -783,6 +784,22 @@ export async function loadIndicatorData(
           const cai = parseFloat(row.CAI_IDX);
           if (!isNaN(cai)) {
             guData.caiValues.push(cai);
+          }
+
+          // 첫 번째 측정소의 원시 데이터 로깅
+          if (isFirstRow) {
+            console.log('🔍 첫 번째 측정소 원시 데이터:', {
+              구: guName,
+              측정소: row.MSRSTN_NM,
+              PM10: row.PM,
+              PM25: row.FPM,
+              OZON필드: row.OZON,
+              NTDX필드: row.NTDX,
+              CBMX필드: row.CBMX,
+              CAI_IDX필드: row.CAI_IDX,
+              파싱결과: { ozon, no2, co, cai }
+            });
+            isFirstRow = false;
           }
         });
 
@@ -822,7 +839,7 @@ export async function loadIndicatorData(
 
           const airQualityLevel = avgPm25 > 0 ? getAirQualityLevel(avgPm25) : '보통';
 
-          return {
+          const result = {
             gu: guName,
             value: Math.round(avgPm25), // 주요 값은 PM2.5 평균으로 (지도 색상 표시용)
             pm10: Math.round(avgPm10 * 10) / 10, // 소수점 1자리
@@ -834,10 +851,19 @@ export async function loadIndicatorData(
             airQualityLevel,
             stationCount: data.stationCount
           };
+
+          // 디버깅 로그 추가 - 강동구 추가
+          if (guName === '중구' || guName === '종로구' || guName === '강동구') {
+            console.log(`✅ ${guName} 대기질 데이터 수집 완료:`, result);
+            console.log(`   원시 값 수: ozon=${data.ozonValues.length}, no2=${data.no2Values.length}, co=${data.coValues.length}, cai=${data.caiValues.length}`);
+          }
+
+          return result;
         });
 
         console.log(`✅ 구 API 통합 완료: ${indicatorValues.length}개 구, 대기질 데이터 집계`);
-        console.log(`   - 예시: ${indicatorValues[0]?.gu} PM10=${indicatorValues[0]?.pm10}, PM2.5=${indicatorValues[0]?.pm25}, 측정소=${indicatorValues[0]?.stationCount}개`);
+        const firstItem = indicatorValues[0];
+        console.log(`   - 예시: ${firstItem?.gu} PM10=${firstItem?.pm10}, PM2.5=${firstItem?.pm25}, O₃=${firstItem?.ozon}, NO₂=${firstItem?.no2}, CO=${firstItem?.co}, CAI=${firstItem?.caiIndex}, 측정소=${firstItem?.stationCount}개`);
         console.log(`   - 전체 구조 (처음 3개):`, indicatorValues.slice(0, 3));
         if (collectedDataDate) {
           console.log(`📅 데이터 기준일: ${collectedDataDate}`);
@@ -1006,7 +1032,7 @@ export function mergeIndicatorToGeojson(
           // 대기질 데이터 추가 필드 병합
           if (dataPoint.pm10 !== undefined || dataPoint.pm25 !== undefined) {
             if (index < 3) {
-              console.log(`   🌫️ 대기질 데이터 추가: PM10=${dataPoint.pm10}, PM2.5=${dataPoint.pm25}, 등급=${dataPoint.airQualityLevel}`);
+              console.log(`   🌫️ 대기질 데이터 추가: PM10=${dataPoint.pm10}, PM2.5=${dataPoint.pm25}, 오존=${dataPoint.ozon}, NO2=${dataPoint.no2}, CO=${dataPoint.co}, CAI=${dataPoint.caiIndex}, 등급=${dataPoint.airQualityLevel}`);
             }
             return {
               ...feature,
@@ -1015,6 +1041,10 @@ export function mergeIndicatorToGeojson(
                 [indicator_id]: matchedValue,
                 pm10: dataPoint.pm10,
                 pm25: dataPoint.pm25,
+                ozon: dataPoint.ozon,
+                no2: dataPoint.no2,
+                co: dataPoint.co,
+                caiIndex: dataPoint.caiIndex,
                 airQualityLevel: dataPoint.airQualityLevel,
                 stationCount: dataPoint.stationCount,
               },

@@ -1,5 +1,7 @@
 'use client';
 
+import { ReactNode } from 'react';
+
 interface RankingItem {
   gu_name: string;
   value: number;
@@ -16,6 +18,7 @@ interface RankingSidebarProps {
   indicatorName: string; // 지표 이름 (예: "대기질", "생활인구", "음식점")
   unit: string; // 단위 (예: "μg/m³", "명", "개")
   isAirQuality?: boolean; // 대기질 데이터인 경우 true (낮을수록 좋음)
+  indicatorSelector?: ReactNode; // 지표 선택 UI
 }
 
 /**
@@ -28,7 +31,8 @@ export default function RankingSidebar({
   onGuClick,
   indicatorName,
   unit,
-  isAirQuality = false
+  isAirQuality = false,
+  indicatorSelector
 }: RankingSidebarProps) {
   // 대기질은 낮을수록 좋음, 나머지는 높을수록 좋음
   const sortedData = [...allGuData]
@@ -60,11 +64,17 @@ export default function RankingSidebar({
   };
 
   return (
-    <div className="fixed top-20 right-0 w-80 h-[calc(100vh-5rem)] bg-gray-900/95 backdrop-blur-sm border-l border-gray-800 shadow-xl z-10 flex flex-col">
+    <div className="fixed top-16 right-0 w-80 h-[calc(100vh-4rem)] bg-gray-900/95 backdrop-blur-sm border-l border-gray-800 shadow-xl z-10 flex flex-col">
+      {/* 지표 선택 영역 */}
+      {indicatorSelector && (
+        <div className="indicator-selector flex-shrink-0 px-3 pt-3 pb-2.5 border-b border-gray-800">
+          {indicatorSelector}
+        </div>
+      )}
+
       {/* 헤더 - 고정 */}
-      <div className="flex-shrink-0 px-4 pt-4 pb-3 border-b border-gray-800">
+      <div className="flex-shrink-0 px-3 py-2 border-b border-gray-800">
         <h2 className="text-lg font-bold text-white">{indicatorName} 순위</h2>
-        <p className="text-xs text-gray-400 mt-0.5">서울시 25개 구</p>
       </div>
 
       {/* 스크롤 가능한 콘텐츠 영역 */}
@@ -79,7 +89,7 @@ export default function RankingSidebar({
               </h3>
             </div>
           </div>
-          <div className="p-2 space-y-1">
+          <div className="p-2 space-y-1.5">
             {top3.map((item, index) => (
               <button
                 key={item.gu_name}
@@ -94,15 +104,15 @@ export default function RankingSidebar({
                     <span className="font-semibold text-sm text-white">{item.gu_name}</span>
                   </div>
                   {isAirQuality && item.displayValue && (
-                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${getLevelBg(item.displayValue)} ${getLevelColor(item.displayValue)}`}>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded ${getLevelBg(item.displayValue)} ${getLevelColor(item.displayValue)}`}>
                       {item.displayValue}
                     </span>
                   )}
                 </div>
-                <div className="flex items-center justify-end mt-0.5">
+                <div className="flex items-center justify-end mt-1">
                   <span className="text-sm font-bold text-blue-400">
-                    {item.value >= 1000 ? item.value.toLocaleString() : item.value.toFixed(1)}
-                    <span className="text-xs text-gray-500 ml-0.5">{unit}</span>
+                    {unit === '개' || unit === '명' ? item.value.toLocaleString() : (item.value >= 1000 ? item.value.toLocaleString() : item.value.toFixed(1))}
+                    <span className="text-xs text-gray-500 ml-1">{unit}</span>
                   </span>
                 </div>
               </button>
@@ -120,7 +130,7 @@ export default function RankingSidebar({
               </h3>
             </div>
           </div>
-          <div className="p-2 space-y-1">
+          <div className="p-2 space-y-1.5">
             {bottom3.map((item, index) => (
               <button
                 key={item.gu_name}
@@ -129,21 +139,21 @@ export default function RankingSidebar({
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-gray-500">
+                    <span className="text-xs font-semibold text-gray-500">
                       {sortedData.length - (bottom3.length - 1 - index)}위
                     </span>
                     <span className="font-semibold text-sm text-white">{item.gu_name}</span>
                   </div>
                   {isAirQuality && item.displayValue && (
-                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${getLevelBg(item.displayValue)} ${getLevelColor(item.displayValue)}`}>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded ${getLevelBg(item.displayValue)} ${getLevelColor(item.displayValue)}`}>
                       {item.displayValue}
                     </span>
                   )}
                 </div>
-                <div className="flex items-center justify-end mt-0.5">
+                <div className="flex items-center justify-end mt-1">
                   <span className="text-sm font-bold text-red-400">
-                    {item.value >= 1000 ? item.value.toLocaleString() : item.value.toFixed(1)}
-                    <span className="text-xs text-gray-500 ml-0.5">{unit}</span>
+                    {unit === '개' || unit === '명' ? item.value.toLocaleString() : (item.value >= 1000 ? item.value.toLocaleString() : item.value.toFixed(1))}
+                    <span className="text-xs text-gray-500 ml-1">{unit}</span>
                   </span>
                 </div>
               </button>
@@ -151,23 +161,33 @@ export default function RankingSidebar({
           </div>
         </div>
 
-        {/* 서울시 평균 */}
+        {/* 서울시 통계 */}
         <div className="bg-gradient-to-br from-purple-900/30 to-gray-800/50 border border-purple-800/50 overflow-hidden">
           <div className="bg-gradient-to-r from-purple-600 to-purple-500 px-3 py-1.5">
             <div className="flex items-center gap-1.5">
               <span className="text-base">📊</span>
-              <h3 className="font-bold text-xs text-white">서울시 평균</h3>
+              <h3 className="font-bold text-xs text-white">
+                {unit === '개' || unit === '명' ? '서울시 전체' : '서울시 평균'}
+              </h3>
             </div>
           </div>
           <div className="px-3 py-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-400">평균</span>
-              <span className="text-lg font-bold text-purple-400">
+              <span className="text-xs text-gray-400">
+                {unit === '개' || unit === '명' ? '합계' : '평균'}
+              </span>
+              <span className="text-base font-bold text-purple-400">
                 {(() => {
-                  const avg = allGuData.reduce((sum, g) => sum + g.value, 0) / allGuData.filter(g => g.value > 0).length;
-                  return avg >= 1000 ? avg.toLocaleString() : avg.toFixed(1);
+                  // 개수나 명수는 합계, 나머지(%, μg/m³ 등)는 평균
+                  if (unit === '개' || unit === '명') {
+                    const total = allGuData.reduce((sum, g) => sum + g.value, 0);
+                    return total.toLocaleString();
+                  } else {
+                    const avg = allGuData.reduce((sum, g) => sum + g.value, 0) / allGuData.filter(g => g.value > 0).length;
+                    return avg >= 1000 ? avg.toLocaleString() : avg.toFixed(1);
+                  }
                 })()}
-                <span className="text-xs text-gray-500 ml-0.5">{unit}</span>
+                <span className="text-xs text-gray-500 ml-1">{unit}</span>
               </span>
             </div>
           </div>

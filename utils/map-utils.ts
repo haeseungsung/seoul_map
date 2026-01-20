@@ -17,6 +17,59 @@ export interface IndicatorConfig {
 }
 
 /**
+ * 데이터 배열에서 분위수 기반 색상 stops 생성
+ *
+ * @param values - 실제 데이터 값 배열
+ * @param unit - 단위 (%, μg/m³ 등)
+ * @returns 분위수 기반 색상 stops
+ */
+export function createQuantileStops(values: number[], unit: string): [number, string][] {
+  // 유효한 값만 필터링 (0 제외)
+  const validValues = values.filter(v => v > 0).sort((a, b) => a - b);
+
+  if (validValues.length === 0) {
+    return [[0, '#f3f4f6'], [1, '#dbeafe']];
+  }
+
+  // 분위수 계산 (0%, 20%, 40%, 60%, 80%, 100%)
+  const getQuantile = (p: number) => {
+    const index = Math.floor(validValues.length * p);
+    return validValues[Math.min(index, validValues.length - 1)];
+  };
+
+  const min = validValues[0];
+  const q20 = getQuantile(0.2);
+  const q40 = getQuantile(0.4);
+  const q60 = getQuantile(0.6);
+  const q80 = getQuantile(0.8);
+  const max = validValues[validValues.length - 1];
+
+  // % 단위는 초록색 계열
+  if (unit === '%') {
+    return [
+      [0, '#f3f4f6'],          // 데이터 없음
+      [min, '#f0fdf4'],        // 최소값
+      [q20, '#dcfce7'],        // 20%
+      [q40, '#86efac'],        // 40%
+      [q60, '#22c55e'],        // 60%
+      [q80, '#16a34a'],        // 80%
+      [max, '#15803d'],        // 최대값
+    ];
+  }
+
+  // 기본: 단일 파란색 톤 그라데이션 (개수용)
+  return [
+    [0, '#e5e7eb'],          // 데이터 없음 (회색)
+    [min, '#eff6ff'],        // 최소값 (매우 연한 파란색)
+    [q20, '#dbeafe'],        // 20%
+    [q40, '#93c5fd'],        // 40%
+    [q60, '#3b82f6'],        // 60%
+    [q80, '#2563eb'],        // 80%
+    [max, '#1d4ed8'],        // 최대값 (진한 파란색)
+  ];
+}
+
+/**
  * 지표별 색상 범위 설정
  *
  * @param indicator - 표시할 지표 타입
@@ -32,6 +85,10 @@ export function getIndicatorConfig(indicator: IndicatorType | string): Indicator
     // OA-2219 (대기질) → 'μg/m³'
     if (indicatorId.includes('OA-2219') || indicatorId.includes('환경_정보')) {
       return 'μg/m³';
+    }
+    // 영업률, 비율 등 → '%'
+    if (indicatorId.includes('영업률') || indicatorId.includes('비율') || indicatorId.includes('률') || indicatorId.includes('_ratio')) {
+      return '%';
     }
     // 기본값
     return '개';
@@ -177,20 +234,39 @@ export function getIndicatorConfig(indicator: IndicatorType | string): Indicator
         };
       }
 
+      // % 단위는 초록색/그린 계열 색상 사용
+      if (unit === '%') {
+        return {
+          property: indicator as string,
+          label: indicator as string,
+          unit: unit,
+          stops: [
+            [0, '#f3f4f6'],     // 0% - 회색 (데이터 없음)
+            [10, '#f0fdf4'],    // 10% - 매우 연한 초록
+            [20, '#dcfce7'],    // 20% - 연한 초록
+            [30, '#bbf7d0'],    // 30% - 밝은 초록
+            [40, '#86efac'],    // 40% - 중간 초록
+            [50, '#4ade80'],    // 50% - 초록
+            [60, '#22c55e'],    // 60% - 진한 초록
+            [70, '#16a34a'],    // 70% - 더 진한 초록
+            [80, '#15803d'],    // 80%+ - 가장 진한 초록
+          ],
+        };
+      }
+
+      // 기본 블루 계열 - 25개 구에 최적화된 색상 분포
       return {
         property: indicator as string,
         label: indicator as string,
         unit: unit,
         stops: [
-          [0, '#f3f4f6'],
-          [1, '#dbeafe'],
-          [3, '#bfdbfe'],
-          [5, '#93c5fd'],
-          [10, '#60a5fa'],
-          [20, '#3b82f6'],
-          [50, '#2563eb'],
-          [100, '#1d4ed8'],
-          [500, '#1e3a8a'],
+          [0, '#f3f4f6'],      // 0 - 회색 (데이터 없음)
+          [1, '#dbeafe'],      // 최소값 - 매우 연한 파랑
+          [20, '#93c5fd'],     // 하위 25% - 연한 파랑
+          [40, '#60a5fa'],     // 하위 50% - 중간 파랑
+          [60, '#3b82f6'],     // 상위 50% - 진한 파랑
+          [80, '#2563eb'],     // 상위 25% - 더 진한 파랑
+          [100, '#1d4ed8'],    // 상위 값 - 가장 진한 파랑
         ],
       };
   }

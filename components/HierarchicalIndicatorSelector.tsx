@@ -48,10 +48,36 @@ export default function HierarchicalIndicatorSelector({
   useEffect(() => {
     if (isOpen && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      setDropdownPosition({
-        top: rect.bottom + 8, // 8px gap below button
-        left: rect.left,
-      });
+      const dropdownWidth = 500;
+      const dropdownHeight = 384; // max-h-96 = 24rem = 384px
+      const margin = 16;
+
+      let left = rect.left;
+      let top = rect.bottom + 8;
+
+      // Check if dropdown would extend beyond right edge of viewport
+      if (left + dropdownWidth > window.innerWidth - margin) {
+        // Shift left to fit within viewport
+        left = window.innerWidth - dropdownWidth - margin;
+      }
+
+      // Check if left would go negative
+      if (left < margin) {
+        left = margin;
+      }
+
+      // Check if dropdown would extend beyond bottom edge of viewport
+      if (top + dropdownHeight > window.innerHeight - margin) {
+        // Render above button instead
+        top = rect.top - dropdownHeight - 8;
+
+        // If still doesn't fit, position at top of viewport
+        if (top < margin) {
+          top = margin;
+        }
+      }
+
+      setDropdownPosition({ top, left });
     }
   }, [isOpen]);
 
@@ -182,22 +208,22 @@ export default function HierarchicalIndicatorSelector({
       <button
         ref={buttonRef}
         onClick={() => setIsOpen(!isOpen)}
-        className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-md shadow-sm hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-left min-w-[320px]"
+        className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-md shadow-sm hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-left w-full"
         disabled={isLoading}
       >
         {isLoading ? (
-          <span className="text-gray-500">지표 로딩 중...</span>
+          <span className="text-gray-500 text-xs">지표 로딩 중...</span>
         ) : selectedIndicator ? (
-          <div className="flex flex-col">
-            <span className="text-sm font-medium text-white">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs font-medium text-white">
               {selectedIndicator.topic.category} &gt; {selectedIndicator.topic.topic_name}
             </span>
-            <span className="text-xs text-gray-400 truncate">
+            <span className="text-[10px] text-gray-400 truncate">
               {selectedIndicator.indicator.description}
             </span>
           </div>
         ) : (
-          <span className="text-gray-400">지표 선택 ({topics.length.toLocaleString()}개 주제)</span>
+          <span className="text-gray-400 text-xs">지표 선택 ({topics.length.toLocaleString()}개 주제)</span>
         )}
       </button>
 

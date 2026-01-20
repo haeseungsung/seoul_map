@@ -6,7 +6,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { loadPopulationFromCSV } from '@/api/seoul-data';
 import { parsePopulationCSV, type DistrictPopulation } from '@/utils/csv-parser';
 import type { IndicatorType } from '@/app/page';
-import { getIndicatorConfig } from '@/utils/map-utils';
+import { getIndicatorConfig, createQuantileStops } from '@/utils/map-utils';
 
 // Mapbox 토큰 (환경변수에서 가져옴)
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
@@ -228,42 +228,54 @@ export default function MapContainer({
       return getIndicatorConfig(selectedIndicator);
     }
 
-    // 행정동 API 데이터가 있으면 실제 값 범위 기반으로 색상 생성
+    // 구 단위 API 데이터가 있으면 실제 값 범위 기반으로 색상 생성 (분위수 기반)
+    if (viewMode === 'gu' && externalGuGeojsonData) {
+      const values = externalGuGeojsonData.features
+        .map((f: any) => f.properties?.[selectedIndicator] || 0)
+        .filter((v: number) => v > 0);
+
+      if (values.length > 0) {
+        const config = getIndicatorConfig(selectedIndicator);
+        const quantileStops = createQuantileStops(values, config.unit);
+
+        console.log(`   🎨 구 데이터 분위수 기반 색상 생성:`, {
+          dataPoints: values.length,
+          min: Math.min(...values).toLocaleString(),
+          max: Math.max(...values).toLocaleString(),
+          stops: quantileStops.map(([v, c]) => `${v}: ${c}`)
+        });
+
+        return {
+          property: selectedIndicator,
+          label: selectedIndicator,
+          unit: config.unit,
+          stops: quantileStops,
+        };
+      }
+    }
+
+    // 행정동 API 데이터가 있으면 실제 값 범위 기반으로 색상 생성 (분위수 기반)
     if (viewMode === 'dong' && externalDongGeojsonData) {
       const values = externalDongGeojsonData.features
         .map((f: any) => f.properties?.[selectedIndicator] || 0)
         .filter((v: number) => v > 0);
 
       if (values.length > 0) {
-        const minValue = Math.min(...values);
-        const maxValue = Math.max(...values);
+        const config = getIndicatorConfig(selectedIndicator);
+        const quantileStops = createQuantileStops(values, config.unit);
 
-        console.log(`   🎨 행정동 데이터 범위: ${minValue.toLocaleString()} ~ ${maxValue.toLocaleString()}`);
-
-        // 항상 데이터 기반 동적 색상 범위 생성
-        const range = maxValue - minValue;
-        const numStops = 8; // 8단계 색상
-
-        const stops: [number, string][] = [[0, '#f3f4f6']]; // 회색 (0)
-
-        const colors = [
-          '#dbeafe', '#bfdbfe', '#93c5fd', '#60a5fa',
-          '#3b82f6', '#2563eb', '#1d4ed8', '#1e40af'
-        ];
-
-        // 균등 분할 (quantile 방식이 더 좋지만 일단 균등 분할)
-        for (let i = 0; i < numStops; i++) {
-          const value = minValue + (range * i / (numStops - 1));
-          stops.push([Math.round(value), colors[i]]);
-        }
-
-        console.log(`   🎨 동적 색상 범위 생성: ${numStops}개 stops`, stops);
+        console.log(`   🎨 행정동 데이터 분위수 기반 색상 생성:`, {
+          dataPoints: values.length,
+          min: Math.min(...values).toLocaleString(),
+          max: Math.max(...values).toLocaleString(),
+          stops: quantileStops.map(([v, c]) => `${v}: ${c}`)
+        });
 
         return {
           property: selectedIndicator,
           label: selectedIndicator,
-          unit: '명',
-          stops,
+          unit: config.unit,
+          stops: quantileStops,
         };
       }
     }
@@ -402,9 +414,24 @@ export default function MapContainer({
                     selectedIndicator.includes('환경_정보')
                       ? ['get', 'airQualityLevel']
                       : [
-                          'concat',
-                          ['to-string', ['round', ['get', indicatorConfig.property]]],
-                          indicatorConfig.unit
+                          'case',
+                          ['<=', ['get', indicatorConfig.property], 0],
+                          '', // 값이 0 이하면 빈 문자열
+                          indicatorConfig.unit === '%'
+                            ? [
+                                'concat',
+                                [
+                                  'number-format',
+                                  ['get', indicatorConfig.property],
+                                  { 'min-fraction-digits': 1, 'max-fraction-digits': 1 }
+                                ],
+                                indicatorConfig.unit
+                              ]
+                            : [
+                                'concat',
+                                ['to-string', ['round', ['get', indicatorConfig.property]]],
+                                indicatorConfig.unit
+                              ]
                         ],
                   'text-font': ['Open Sans Semibold', 'Arial Unicode MS Regular'],
                   'text-size': 12,

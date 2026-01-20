@@ -36,7 +36,7 @@ export default function AirQualityComparePanel({
   allGuData,
   onClose,
 }: AirQualityComparePanelProps) {
-  const [showDetails, setShowDetails] = useState(false);
+  const [showDetails, setShowDetails] = useState(true); // 기본으로 펼쳐진 상태
   // 서울시 전체 평균 계산
   const seoulAvgPm10 = allGuData.reduce((sum, gu) => sum + (gu.pm10 || 0), 0) / allGuData.filter(g => g.pm10 > 0).length;
   const seoulAvgPm25 = allGuData.reduce((sum, gu) => sum + (gu.pm25 || 0), 0) / allGuData.filter(g => g.pm25 > 0).length;

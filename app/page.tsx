@@ -106,10 +106,10 @@ export default function Home() {
     }
   }, [viewMode, baseGuGeojsonData]);
 
-  // 앱 시작 시 대기질 지표 자동 로드
+  // 구 GeoJSON 로드 완료 후 대기질 지표 자동 로드
   useEffect(() => {
-    if (viewMode === 'gu' && !selectedGuIndicator && baseGuGeojsonData) {
-      // 대기질 지표 자동 로드
+    if (viewMode === 'gu' && baseGuGeojsonData && !selectedGuIndicator) {
+      console.log('🌫️ 앱 시작: 대기질 지표 자동 로드');
       const airQualityIndicator: IndicatorMetadata = {
         family: '환경_정보',
         indicator_id: '환경_정보_대기오염_OA-2219',
@@ -121,8 +121,6 @@ export default function Home() {
         aggregation_method: JSON.stringify([{ gu: 'all', id: 'OA-2219' }]),
         description: '서울시 권역별 실시간 대기환경 현황'
       };
-
-      console.log('🌫️ 앱 시작: 대기질 지표 자동 로드');
       handleGuIndicatorSelect(airQualityIndicator);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -358,42 +356,12 @@ export default function Home() {
               </button>
             </div>
 
-            {/* 행정동 모드 - API 지표 선택만 */}
-            {viewMode === 'dong' && (
-              <>
-                <div className="indicator-selector">
-                  <HierarchicalIndicatorSelector
-                    onIndicatorSelect={handleGuIndicatorSelect}
-                    selectedIndicatorId={selectedGuIndicator?.indicator_id}
-                    filterSpatialGrain={viewMode}
-                  />
-                </div>
-                {isLoadingGuIndicator && (
-                  <div className="flex items-center gap-2 text-sm text-blue-600">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                    <span>지표 로딩 중...</span>
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* 구/시 모드 - 통합 지표 선택 */}
-            {(viewMode === 'gu' || viewMode === 'city') && (
-              <>
-                <div className="indicator-selector">
-                  <HierarchicalIndicatorSelector
-                    onIndicatorSelect={handleGuIndicatorSelect}
-                    selectedIndicatorId={selectedGuIndicator?.indicator_id}
-                    filterSpatialGrain={viewMode}
-                  />
-                </div>
-                {isLoadingGuIndicator && (
-                  <div className="flex items-center gap-2 text-sm text-blue-600">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                    <span>지표 로딩 중...</span>
-                  </div>
-                )}
-              </>
+            {/* 로딩 표시 */}
+            {isLoadingGuIndicator && (
+              <div className="flex items-center gap-2 text-sm text-blue-600">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                <span>지표 로딩 중...</span>
+              </div>
             )}
           </div>
         </div>
@@ -467,6 +435,13 @@ export default function Home() {
               indicatorName="PM2.5"
               unit="μg/m³"
               isAirQuality={true}
+              indicatorSelector={
+                <HierarchicalIndicatorSelector
+                  onIndicatorSelect={handleGuIndicatorSelect}
+                  selectedIndicatorId={selectedGuIndicator?.indicator_id}
+                  filterSpatialGrain={viewMode}
+                />
+              }
             />
           );
         }
@@ -495,6 +470,9 @@ export default function Home() {
           if (selectedGuIndicator.indicator_name.includes('생활인구') || selectedGuIndicator.indicator_name.includes('인구')) {
             return '명';
           }
+          if (selectedGuIndicator.indicator_name.includes('영업률') || selectedGuIndicator.indicator_name.includes('비율') || selectedGuIndicator.indicator_name.includes('률')) {
+            return '%';
+          }
           return '개';
         };
 
@@ -505,6 +483,13 @@ export default function Home() {
             indicatorName={selectedGuIndicator.indicator_name}
             unit={getUnit()}
             isAirQuality={false}
+            indicatorSelector={
+              <HierarchicalIndicatorSelector
+                onIndicatorSelect={handleGuIndicatorSelect}
+                selectedIndicatorId={selectedGuIndicator?.indicator_id}
+                filterSpatialGrain={viewMode}
+              />
+            }
           />
         );
       })()}
@@ -654,6 +639,9 @@ export default function Home() {
           if (selectedGuIndicator.indicator_name.includes('생활인구') || selectedGuIndicator.indicator_name.includes('인구')) {
             return '명';
           }
+          if (selectedGuIndicator.indicator_name.includes('영업률') || selectedGuIndicator.indicator_name.includes('비율') || selectedGuIndicator.indicator_name.includes('률')) {
+            return '%';
+          }
           return '개';
         };
 
@@ -680,10 +668,10 @@ export default function Home() {
         // 비교 메시지
         const diff = ((value - seoulAvg) / seoulAvg) * 100;
         const compareMessage = diff > 10
-          ? `서울시 평균보다 ${Math.round(diff)}% 높습니다`
+          ? `서울시 전체 구 평균보다 ${Math.round(diff)}% 높습니다`
           : diff < -10
-          ? `서울시 평균보다 ${Math.abs(Math.round(diff))}% 낮습니다`
-          : `서울시 평균과 비슷한 수준입니다`;
+          ? `서울시 전체 구 평균보다 ${Math.abs(Math.round(diff))}% 낮습니다`
+          : `서울시 전체 구 평균과 비슷한 수준입니다`;
 
         return (
           <div className="absolute top-20 right-4 w-96 bg-white rounded-lg shadow-xl z-20 overflow-hidden flex flex-col" style={{ maxHeight: 'calc(100dvh - 6rem)' }}>
@@ -711,7 +699,7 @@ export default function Home() {
               {/* 현재 구 수치 */}
               <div className="bg-blue-50 rounded-lg p-4 text-center">
                 <div className="text-4xl font-bold text-blue-600 mb-1">
-                  {value >= 1000 ? value.toLocaleString() : value}
+                  {getUnit() === '%' ? value.toFixed(1) : (value >= 1000 ? value.toLocaleString() : value)}
                 </div>
                 <div className="text-sm text-gray-600">
                   {getUnit()}
@@ -732,25 +720,25 @@ export default function Home() {
                 </div>
               )}
 
-              {/* 서울시 평균 비교 */}
+              {/* 서울시 전체 구 평균 비교 */}
               {seoulAvg > 0 && (
                 <div className="space-y-3">
                   <h3 className="text-sm font-semibold text-gray-700">
-                    📈 서울시 평균 비교
+                    📈 서울시 전체 구 평균 비교
                   </h3>
                   <div className="bg-gray-50 rounded-lg p-4">
                     <div className="flex justify-between items-center mb-2">
                       <div>
                         <div className="text-xs text-gray-500 mb-1">{guName}</div>
                         <div className="text-xl font-bold text-gray-900">
-                          {value >= 1000 ? value.toLocaleString() : value}
+                          {getUnit() === '%' ? value.toFixed(1) : (value >= 1000 ? value.toLocaleString() : value)}
                         </div>
                       </div>
                       <div className="text-gray-400 text-2xl">vs</div>
                       <div>
-                        <div className="text-xs text-gray-500 mb-1">서울시 평균</div>
+                        <div className="text-xs text-gray-500 mb-1">전체 구 평균</div>
                         <div className="text-xl font-bold text-gray-900">
-                          {seoulAvg >= 1000 ? Math.round(seoulAvg).toLocaleString() : Math.round(seoulAvg)}
+                          {getUnit() === '%' ? seoulAvg.toFixed(1) : (seoulAvg >= 1000 ? Math.round(seoulAvg).toLocaleString() : Math.round(seoulAvg))}
                         </div>
                       </div>
                     </div>

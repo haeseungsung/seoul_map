@@ -3,7 +3,7 @@ LOCALDATA,retail_wholesale_count,유통전문판매업_전체,count,gu,LOCALDATA
 LOCALDATA,retail_wholesale_active,유통전문판매업_영업중,count,gu,LOCALDATA_072217_*,BPLCNM,count_active,TRDSTATEGBN=01,구별 영업중인 유통전문판매업 업소 수
 LOCALDATA,retail_wholesale_closed,유통전문판매업_폐업,count,gu,LOCALDATA_072217_*,BPLCNM,count_closed,TRDSTATEGBN=03,구별 폐업한 유통전문판매업 업소 수
 LOCALDATA,retail_wholesale_ratio,유통전문판매업_영업률,rate,gu,LOCALDATA_072217_*,TRDSTATEGBN,active_ratio,,유통전문판매업 영업률 (%)
-LOCALDATA,food_service_count,일반음식점_전체,count,gu,LOCALDATA_072404_*,BPLCNM,count,,구별 일반음식점 전체 업소 수
+LOCALDATA,food_service_count,일반음식점 수,count,gu,LOCALDATA_072404_*,BPLCNM,count,,구별 일반음식점 전체 업소 수
 LOCALDATA,food_service_active,일반음식점_영업중,count,gu,LOCALDATA_072404_*,BPLCNM,count_active,TRDSTATEGBN=01,구별 영업중인 일반음식점 업소 수
 LOCALDATA,food_service_closed,일반음식점_폐업,count,gu,LOCALDATA_072404_*,BPLCNM,count_closed,TRDSTATEGBN=03,구별 폐업한 일반음식점 업소 수
 LOCALDATA,food_service_ratio,일반음식점_영업률,rate,gu,LOCALDATA_072404_*,TRDSTATEGBN,active_ratio,,일반음식점 영업률 (%)
