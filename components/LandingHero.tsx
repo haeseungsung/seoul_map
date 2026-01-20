@@ -86,6 +86,25 @@ export default function LandingHero({ onStart }: LandingHeroProps) {
             <p className="text-xs text-gray-500 mt-6">
               💡 지도에서 구를 클릭하면 다른 구와의 비교 분석을 볼 수 있습니다
             </p>
+
+            {/* 크레딧 */}
+            <a
+              href="https://dongle-data.vercel.app/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 mt-4 text-xs text-gray-600 hover:text-gray-800 transition-colors group"
+            >
+              <div className="flex items-center gap-2">
+                {/* 로고 - 다크 서클 + D */}
+                <div className="w-5 h-5 bg-gray-900 rounded-full flex items-center justify-center flex-shrink-0">
+                  <span className="text-white font-bold text-[10px]">D</span>
+                </div>
+                {/* 회사명 */}
+                <span className="font-bold text-gray-900 group-hover:underline">
+                  Dongle Data Lab
+                </span>
+              </div>
+            </a>
           </div>
         </div>
       </div>
