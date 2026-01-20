@@ -123,32 +123,25 @@ export default function OnboardingTour({ isActive, onComplete }: OnboardingTourP
 
   return (
     <>
-      {/* Backdrop overlay with cutout */}
+      {/* Backdrop overlay with cutout using box-shadow inset */}
+      {targetRect && (
+        <div
+          className="fixed z-[10000] pointer-events-none"
+          style={{
+            top: targetRect.top - 12,
+            left: targetRect.left - 12,
+            width: targetRect.width + 24,
+            height: targetRect.height + 24,
+            boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.75)',
+            borderRadius: '12px',
+          }}
+        />
+      )}
+
+      {/* Full-screen clickable overlay (behind the cutout) */}
       <div
-        className="fixed inset-0 z-[10000] pointer-events-auto"
+        className="fixed inset-0 z-[9999] pointer-events-auto"
         onClick={handleSkip}
-        style={{
-          background: targetRect
-            ? `
-              linear-gradient(to right,
-                rgba(0,0,0,0.75) 0%,
-                rgba(0,0,0,0.75) ${targetRect.left - 12}px,
-                transparent ${targetRect.left - 12}px,
-                transparent ${targetRect.right + 12}px,
-                rgba(0,0,0,0.75) ${targetRect.right + 12}px,
-                rgba(0,0,0,0.75) 100%
-              ),
-              linear-gradient(to bottom,
-                rgba(0,0,0,0.75) 0%,
-                rgba(0,0,0,0.75) ${targetRect.top - 12}px,
-                transparent ${targetRect.top - 12}px,
-                transparent ${targetRect.bottom + 12}px,
-                rgba(0,0,0,0.75) ${targetRect.bottom + 12}px,
-                rgba(0,0,0,0.75) 100%
-              )
-            `
-            : 'rgba(0, 0, 0, 0.75)'
-        }}
       />
 
       {/* Animated highlight border */}
@@ -169,7 +162,7 @@ export default function OnboardingTour({ isActive, onComplete }: OnboardingTourP
 
       {/* Tooltip */}
       <div
-        className="fixed z-[10002] bg-white rounded-xl shadow-2xl p-6 max-w-md pointer-events-auto"
+        className="fixed z-[10002] bg-white rounded-xl shadow-2xl p-6 w-[420px] pointer-events-auto"
         style={getTooltipPosition()}
       >
         <div className="flex items-start justify-between mb-3">

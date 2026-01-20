@@ -182,7 +182,7 @@ export default function HierarchicalIndicatorSelector({
       <button
         ref={buttonRef}
         onClick={() => setIsOpen(!isOpen)}
-        className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-md shadow-sm hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-left min-w-[250px]"
+        className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-md shadow-sm hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-left min-w-[320px]"
         disabled={isLoading}
       >
         {isLoading ? (

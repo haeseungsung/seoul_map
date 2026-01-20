@@ -20,3 +20,4 @@ LOCALDATA,hospital_count,병원_전체,count,gu,LOCALDATA_010101_*,BPLCNM,count,
 LOCALDATA,hospital_active,병원_영업중,count,gu,LOCALDATA_010101_*,BPLCNM,count_active,TRDSTATEGBN=01,구별 영업중인 병원 업소 수
 LOCALDATA,hospital_closed,병원_폐업,count,gu,LOCALDATA_010101_*,BPLCNM,count_closed,TRDSTATEGBN=03,구별 폐업한 병원 업소 수
 LOCALDATA,hospital_ratio,병원_영업률,rate,gu,LOCALDATA_010101_*,TRDSTATEGBN,active_ratio,,병원 영업률 (%)
+API_SPATIAL,bike_availability_dong,공공자전거_대여가능률,rate,dong,SPATIAL_AGGREGATE_DONG,availability_rate,[{"dong":"all","id":"OA-15493"}],,행정동별 공공자전거 대여 가능률 (%)

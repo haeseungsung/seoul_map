@@ -411,7 +411,7 @@ export default function Home() {
       </div>
 
       {/* 지도 컨테이너 */}
-      <div className="map-container absolute inset-0 pt-16">
+      <div className="map-container absolute inset-0 pt-16 z-0">
         <MapContainer
           onDistrictClick={handleDistrictClick}
           selectedIndicator={
@@ -431,7 +431,7 @@ export default function Home() {
       <OnboardingTour isActive={showOnboarding} onComplete={handleOnboardingComplete} />
 
       {/* RankingSidebar - 모든 구 단위 지표에 대한 TOP 3 / BOTTOM 3 */}
-      {guGeojsonData && viewMode === 'gu' && selectedGuIndicator && !selectedDistrict && (() => {
+      {guGeojsonData && viewMode === 'gu' && selectedGuIndicator && (() => {
         const isAirQuality = selectedGuIndicator.indicator_id.includes('환경_정보');
         const indicatorId = selectedGuIndicator.indicator_id;
 
@@ -517,6 +517,15 @@ export default function Home() {
         const airQualityLevel = selectedDistrict.airQualityLevel || '보통';
         const stationCount = selectedDistrict.stationCount || 0;
 
+        // 데이터가 없는 구인지 확인 (PM25가 0이면 데이터 없음)
+        const hasData = pm25 > 0;
+
+        // 추가 대기환경 데이터
+        const ozon = selectedDistrict.ozon;
+        const no2 = selectedDistrict.no2;
+        const co = selectedDistrict.co;
+        const caiIndex = selectedDistrict.caiIndex;
+
         // 모든 구의 대기질 데이터 추출
         const allGuData = guGeojsonData.features
           .filter((f: any) => f.properties?.pm25 !== undefined && f.properties?.pm25 > 0)
@@ -533,7 +542,53 @@ export default function Home() {
           PM25: pm25,
           등급: airQualityLevel,
           전체구수: allGuData.length,
+          데이터존재: hasData,
+          추가데이터: { ozon, no2, co, caiIndex }
         });
+
+        // 데이터가 없으면 "데이터 없음" 패널 표시
+        if (!hasData) {
+          return (
+            <div className="absolute top-20 right-4 w-96 bg-white rounded-lg shadow-xl z-20 p-6">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">{guName}</h2>
+                  <p className="text-sm text-gray-500 mt-1">대기질 정보</p>
+                </div>
+                <button
+                  onClick={() => setSelectedDistrict(null)}
+                  className="text-gray-400 hover:text-gray-600 transition"
+                  aria-label="닫기"
+                >
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-8 text-center">
+                <div className="text-6xl mb-4">⚠️</div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">
+                  데이터가 없습니다
+                </h3>
+                <p className="text-sm text-gray-600">
+                  이 구는 현재 대기질 측정소가 없어<br />
+                  데이터를 제공하지 않습니다.
+                </p>
+              </div>
+            </div>
+          );
+        }
 
         return (
           <AirQualityComparePanel
@@ -542,9 +597,180 @@ export default function Home() {
             pm25={pm25}
             airQualityLevel={airQualityLevel as any}
             stationCount={stationCount}
+            ozon={ozon}
+            no2={no2}
+            co={co}
+            caiIndex={caiIndex}
             allGuData={allGuData}
             onClose={() => setSelectedDistrict(null)}
           />
+        );
+      })()}
+
+      {/* 구 단위 일반 지표 상세 패널 */}
+      {selectedDistrict && guGeojsonData && viewMode === 'gu' && selectedGuIndicator && !selectedGuIndicator.indicator_id.includes('환경_정보') && (() => {
+        const guName = selectedDistrict.gu_name || selectedDistrict.SIG_KOR_NM || '알 수 없음';
+        const indicatorId = selectedGuIndicator.indicator_id;
+        const value = selectedDistrict[indicatorId] || 0;
+
+        // 데이터 존재 여부 확인
+        const hasData = value > 0;
+
+        // 데이터가 없으면 "데이터 없음" 패널 표시
+        if (!hasData) {
+          return (
+            <div className="absolute top-20 right-4 w-96 bg-white rounded-lg shadow-xl z-20 p-6">
+              <div className="flex items-start justify-between mb-4">
+                <h2 className="text-xl font-bold text-gray-900">{guName}</h2>
+                <button
+                  onClick={() => setSelectedDistrict(null)}
+                  className="text-gray-400 hover:text-gray-600 transition"
+                  aria-label="닫기"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-8 text-center">
+                <div className="text-6xl mb-4">⚠️</div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">데이터가 없습니다</h3>
+                <p className="text-sm text-gray-600 mb-3">
+                  이 구는 현재 {selectedGuIndicator.indicator_name}에 대한<br />
+                  데이터를 제공하지 않습니다.
+                </p>
+                <p className="text-xs text-gray-500">
+                  자세한 사항은 서울 열린데이터광장<br />
+                  (<a href="https://data.seoul.go.kr" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">https://data.seoul.go.kr</a>)을 참고하세요.
+                </p>
+              </div>
+            </div>
+          );
+        }
+
+        // 단위 결정
+        const getUnit = () => {
+          if (selectedGuIndicator.indicator_name.includes('생활인구') || selectedGuIndicator.indicator_name.includes('인구')) {
+            return '명';
+          }
+          return '개';
+        };
+
+        // 서울시 전체 평균 계산
+        const allGuValues = guGeojsonData.features
+          .map((f: any) => f.properties?.[indicatorId] || 0)
+          .filter((v: number) => v > 0);
+        const seoulAvg = allGuValues.length > 0
+          ? allGuValues.reduce((sum: number, v: number) => sum + v, 0) / allGuValues.length
+          : 0;
+
+        // 순위 계산
+        const sortedData = guGeojsonData.features
+          .map((f: any) => ({
+            gu_name: f.properties.gu_name || f.properties.SIG_KOR_NM || '',
+            value: f.properties[indicatorId] || 0,
+          }))
+          .filter((d: any) => d.value > 0)
+          .sort((a: any, b: any) => b.value - a.value);
+
+        const myRank = sortedData.findIndex((d: any) => d.gu_name === guName) + 1;
+        const totalGu = sortedData.length;
+
+        // 비교 메시지
+        const diff = ((value - seoulAvg) / seoulAvg) * 100;
+        const compareMessage = diff > 10
+          ? `서울시 평균보다 ${Math.round(diff)}% 높습니다`
+          : diff < -10
+          ? `서울시 평균보다 ${Math.abs(Math.round(diff))}% 낮습니다`
+          : `서울시 평균과 비슷한 수준입니다`;
+
+        return (
+          <div className="absolute top-20 right-4 w-96 bg-white rounded-lg shadow-xl z-20 overflow-hidden flex flex-col" style={{ maxHeight: 'calc(100dvh - 6rem)' }}>
+            {/* 헤더 */}
+            <div className="bg-gradient-to-r from-blue-600 to-blue-500 px-5 py-4 text-white flex-shrink-0">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-xl font-bold">{guName}</h2>
+                  <p className="text-sm text-blue-100 mt-1">{selectedGuIndicator.indicator_name}</p>
+                </div>
+                <button
+                  onClick={() => setSelectedDistrict(null)}
+                  className="text-white hover:text-blue-200 transition"
+                  aria-label="닫기"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* 본문 */}
+            <div className="p-5 space-y-4 overflow-y-auto flex-1">
+              {/* 현재 구 수치 */}
+              <div className="bg-blue-50 rounded-lg p-4 text-center">
+                <div className="text-4xl font-bold text-blue-600 mb-1">
+                  {value >= 1000 ? value.toLocaleString() : value}
+                </div>
+                <div className="text-sm text-gray-600">
+                  {getUnit()}
+                </div>
+              </div>
+
+              {/* 서울시 순위 */}
+              {myRank > 0 && (
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">
+                    📊 서울시 25개 구 중 순위
+                  </h3>
+                  <div className="text-center">
+                    <div className="text-4xl font-bold text-blue-600 mb-2">
+                      {myRank}위 <span className="text-lg text-gray-500">/ {totalGu}개 구</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 서울시 평균 비교 */}
+              {seoulAvg > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-gray-700">
+                    📈 서울시 평균 비교
+                  </h3>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <div>
+                        <div className="text-xs text-gray-500 mb-1">{guName}</div>
+                        <div className="text-xl font-bold text-gray-900">
+                          {value >= 1000 ? value.toLocaleString() : value}
+                        </div>
+                      </div>
+                      <div className="text-gray-400 text-2xl">vs</div>
+                      <div>
+                        <div className="text-xs text-gray-500 mb-1">서울시 평균</div>
+                        <div className="text-xl font-bold text-gray-900">
+                          {seoulAvg >= 1000 ? Math.round(seoulAvg).toLocaleString() : Math.round(seoulAvg)}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-center pt-2 border-t border-gray-200">
+                      <span className={`text-sm font-medium ${diff > 0 ? 'text-blue-600' : diff < 0 ? 'text-purple-600' : 'text-gray-600'}`}>
+                        {compareMessage}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 푸터 */}
+            <div className="bg-gray-50 px-5 py-3 border-t flex-shrink-0">
+              <p className="text-xs text-gray-500">
+                💡 지도에서 다른 구를 클릭하면 비교 결과가 업데이트됩니다
+              </p>
+            </div>
+          </div>
         );
       })()}
 

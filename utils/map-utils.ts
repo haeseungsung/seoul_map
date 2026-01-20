@@ -160,6 +160,23 @@ export function getIndicatorConfig(indicator: IndicatorType | string): Indicator
         };
       }
 
+      // 자전거 대여 가능률 (OA-15493)
+      if ((indicator as string).includes('OA-15493') || (indicator as string).includes('공공자전거')) {
+        return {
+          property: 'availability_rate',
+          label: '자전거 대여 가능률',
+          unit: '%',
+          stops: [
+            [0, '#e5e7eb'],      // 데이터 없음 - 회색
+            [1, '#ef4444'],      // 0-10% - 빨강 (거의 없음)
+            [10, '#fb923c'],     // 10-25% - 주황 (부족)
+            [25, '#fbbf24'],     // 25-40% - 노랑 (보통)
+            [40, '#a3e635'],     // 40-60% - 연두 (여유)
+            [60, '#34d399'],     // 60%+ - 초록 (충분)
+          ],
+        };
+      }
+
       return {
         property: indicator as string,
         label: indicator as string,

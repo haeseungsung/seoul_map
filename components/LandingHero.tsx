@@ -16,8 +16,8 @@ export default function LandingHero({ onStart }: LandingHeroProps) {
       {/* 그라데이션 배경 오버레이 */}
       <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 via-purple-500/20 to-pink-500/20 backdrop-blur-sm" />
 
-      {/* 히어로 카드 - 사이드바(w-80 = 320px) 공간을 고려하여 왼쪽으로 160px 이동 */}
-      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-auto" style={{ marginLeft: '-160px' }}>
+      {/* 히어로 카드 - 화면 정중앙 */}
+      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-auto">
         <div
           className="relative bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 p-12 max-w-2xl"
           style={{

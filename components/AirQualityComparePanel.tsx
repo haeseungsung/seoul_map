@@ -1,11 +1,18 @@
 'use client';
 
+import { useState } from 'react';
+
 interface AirQualityComparePanelProps {
   guName: string; // 선택된 구 이름
   pm10: number; // 선택된 구의 PM10
   pm25: number; // 선택된 구의 PM2.5
   airQualityLevel: '좋음' | '보통' | '나쁨' | '매우나쁨'; // 선택된 구의 대기질 등급
   stationCount: number; // 선택된 구의 측정소 개수
+  // 추가 대기환경 데이터
+  ozon?: number; // 오존 (ppm)
+  no2?: number; // 이산화질소 (ppm)
+  co?: number; // 일산화탄소 (ppm)
+  caiIndex?: number; // 통합대기환경지수
   allGuData: Array<{ // 모든 구의 대기질 데이터
     gu_name: string;
     pm10: number;
@@ -22,9 +29,14 @@ export default function AirQualityComparePanel({
   pm25,
   airQualityLevel,
   stationCount,
+  ozon,
+  no2,
+  co,
+  caiIndex,
   allGuData,
   onClose,
 }: AirQualityComparePanelProps) {
+  const [showDetails, setShowDetails] = useState(false);
   // 서울시 전체 평균 계산
   const seoulAvgPm10 = allGuData.reduce((sum, gu) => sum + (gu.pm10 || 0), 0) / allGuData.filter(g => g.pm10 > 0).length;
   const seoulAvgPm25 = allGuData.reduce((sum, gu) => sum + (gu.pm25 || 0), 0) / allGuData.filter(g => g.pm25 > 0).length;
@@ -196,6 +208,80 @@ export default function AirQualityComparePanel({
             </div>
           </div>
         </div>
+
+        {/* 상세 대기환경 정보 (펼치기/접기) */}
+        {(ozon !== undefined || no2 !== undefined || co !== undefined || caiIndex !== undefined) && (
+          <div className="bg-gray-50 rounded-lg overflow-hidden">
+            <button
+              onClick={() => setShowDetails(!showDetails)}
+              className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-100 transition"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🔬</span>
+                <span className="text-sm font-semibold text-gray-700">
+                  상세 대기환경 정보
+                </span>
+              </div>
+              <svg
+                className={`w-5 h-5 text-gray-600 transition-transform ${showDetails ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {showDetails && (
+              <div className="px-4 pb-4 space-y-3">
+                {/* PM10 */}
+                <div className="flex items-center justify-between py-2 border-t border-gray-200">
+                  <span className="text-sm text-gray-600">PM10 (미세먼지)</span>
+                  <span className="text-sm font-bold text-gray-900">{pm10.toFixed(1)} μg/m³</span>
+                </div>
+
+                {/* 오존 */}
+                {ozon !== undefined && (
+                  <div className="flex items-center justify-between py-2 border-t border-gray-200">
+                    <span className="text-sm text-gray-600">O₃ (오존)</span>
+                    <span className="text-sm font-bold text-gray-900">{ozon.toFixed(3)} ppm</span>
+                  </div>
+                )}
+
+                {/* 이산화질소 */}
+                {no2 !== undefined && (
+                  <div className="flex items-center justify-between py-2 border-t border-gray-200">
+                    <span className="text-sm text-gray-600">NO₂ (이산화질소)</span>
+                    <span className="text-sm font-bold text-gray-900">{no2.toFixed(3)} ppm</span>
+                  </div>
+                )}
+
+                {/* 일산화탄소 */}
+                {co !== undefined && (
+                  <div className="flex items-center justify-between py-2 border-t border-gray-200">
+                    <span className="text-sm text-gray-600">CO (일산화탄소)</span>
+                    <span className="text-sm font-bold text-gray-900">{co.toFixed(1)} ppm</span>
+                  </div>
+                )}
+
+                {/* 통합대기환경지수 */}
+                {caiIndex !== undefined && (
+                  <div className="flex items-center justify-between py-2 border-t border-gray-200">
+                    <span className="text-sm text-gray-600">CAI (통합대기환경지수)</span>
+                    <span className="text-sm font-bold text-gray-900">{Math.round(caiIndex)}</span>
+                  </div>
+                )}
+
+                <div className="mt-3 pt-3 border-t border-gray-200">
+                  <p className="text-xs text-gray-500">
+                    💡 통합대기환경지수(CAI)는 대기오염도를 나타내는 지수로,
+                    PM10, PM2.5, O₃, NO₂, CO, SO₂ 중 가장 나쁜 값을 기준으로 산출됩니다.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 측정소 개수 */}
         <div className="bg-blue-50 rounded-lg p-4">

@@ -23,6 +23,10 @@ export interface IndicatorValue {
   // 대기질 데이터 추가 필드
   pm10?: number; // 미세먼지(PM10) 평균값
   pm25?: number; // 초미세먼지(PM2.5) 평균값
+  ozon?: number; // 오존(O₃) 평균값 (ppm)
+  no2?: number; // 이산화질소(NO₂) 평균값 (ppm)
+  co?: number; // 일산화탄소(CO) 평균값 (ppm)
+  caiIndex?: number; // 통합대기환경지수(CAI)
   airQualityLevel?: '좋음' | '보통' | '나쁨' | '매우나쁨'; // 대기질 등급
   stationCount?: number; // 측정소 개수
 }
@@ -193,6 +197,40 @@ export async function loadIndicatorData(
   options?: { timeHour?: number }
 ): Promise<IndicatorValue[]> {
   const { family, source_pattern } = metadata;
+
+  // 공간 집계 API (좌표 기반 데이터를 행정동별로 집계)
+  // 예: 자전거 대여소 (bike_availability_dong)
+  if (source_pattern === 'SPATIAL_AGGREGATE_DONG') {
+    console.log(`🚴 공간 집계 API: ${metadata.indicator_name}`);
+
+    try {
+      const response = await fetch('/api/aggregate-bike-by-dong');
+      const result = await response.json();
+
+      if (!result.success || !result.data) {
+        console.error('❌ 자전거 데이터 로드 실패:', result.error);
+        return [];
+      }
+
+      console.log(`✅ 자전거 데이터: ${result.dongCount}개 행정동, ${result.matchedStations}개 대여소`);
+
+      // 행정동별 데이터를 IndicatorValue 형식으로 변환
+      const indicatorValues: IndicatorValue[] = result.data.map((item: any) => ({
+        gu: item.adm_nm, // "서울특별시 종로구 사직동" 형태
+        value: item.availability_rate, // 대여 가능률
+        // 추가 정보 (MapContainer에서 사용 가능)
+        total_racks: item.total_racks,
+        available_bikes: item.available_bikes,
+        station_count: item.station_count,
+        usage_rate: item.usage_rate,
+      }));
+
+      return indicatorValues;
+    } catch (error) {
+      console.error('❌ 자전거 API 호출 실패:', error);
+      return [];
+    }
+  }
 
   if (family === 'LOCALDATA') {
     // LOCALDATA_072217_* 패턴에서 업종 코드 추출
@@ -679,17 +717,33 @@ export async function loadIndicatorData(
       const isAirQualityData = fullData.rows[0]?.PM !== undefined || fullData.rows[0]?.FPM !== undefined;
 
       if (isAirQualityData) {
-        console.log(`   🌫️  대기질 데이터 감지 - PM10, PM2.5 구별 평균 계산`);
+        console.log(`   🌫️  대기질 데이터 감지 - PM10, PM2.5, 오존, NO2, CO, CAI 구별 평균 계산`);
 
         // 구별로 측정소 데이터 그룹화
-        const guDataMap = new Map<string, { pm10Values: number[], pm25Values: number[], stationCount: number }>();
+        const guDataMap = new Map<string, {
+          pm10Values: number[],
+          pm25Values: number[],
+          ozonValues: number[],
+          no2Values: number[],
+          coValues: number[],
+          caiValues: number[],
+          stationCount: number
+        }>();
 
         fullData.rows.forEach((row: any) => {
           const guName = row.MSRSTN_NM; // "강남구", "송파구" 등
           if (!guName) return;
 
           if (!guDataMap.has(guName)) {
-            guDataMap.set(guName, { pm10Values: [], pm25Values: [], stationCount: 0 });
+            guDataMap.set(guName, {
+              pm10Values: [],
+              pm25Values: [],
+              ozonValues: [],
+              no2Values: [],
+              coValues: [],
+              caiValues: [],
+              stationCount: 0
+            });
           }
 
           const guData = guDataMap.get(guName)!;
@@ -705,6 +759,30 @@ export async function loadIndicatorData(
           const pm25 = parseFloat(row.FPM);
           if (!isNaN(pm25)) {
             guData.pm25Values.push(pm25);
+          }
+
+          // O₃ (오존) - ppm
+          const ozon = parseFloat(row.OZON);
+          if (!isNaN(ozon)) {
+            guData.ozonValues.push(ozon);
+          }
+
+          // NO₂ (이산화질소) - ppm
+          const no2 = parseFloat(row.NTDX);
+          if (!isNaN(no2)) {
+            guData.no2Values.push(no2);
+          }
+
+          // CO (일산화탄소) - ppm
+          const co = parseFloat(row.CRST_SBSTN);
+          if (!isNaN(co)) {
+            guData.coValues.push(co);
+          }
+
+          // CAI (통합대기환경지수)
+          const cai = parseFloat(row.CAI_IDX);
+          if (!isNaN(cai)) {
+            guData.caiValues.push(cai);
           }
         });
 
@@ -726,6 +804,22 @@ export async function loadIndicatorData(
             ? data.pm25Values.reduce((a, b) => a + b, 0) / data.pm25Values.length
             : 0;
 
+          const avgOzon = data.ozonValues.length > 0
+            ? data.ozonValues.reduce((a, b) => a + b, 0) / data.ozonValues.length
+            : undefined;
+
+          const avgNo2 = data.no2Values.length > 0
+            ? data.no2Values.reduce((a, b) => a + b, 0) / data.no2Values.length
+            : undefined;
+
+          const avgCo = data.coValues.length > 0
+            ? data.coValues.reduce((a, b) => a + b, 0) / data.coValues.length
+            : undefined;
+
+          const avgCai = data.caiValues.length > 0
+            ? data.caiValues.reduce((a, b) => a + b, 0) / data.caiValues.length
+            : undefined;
+
           const airQualityLevel = avgPm25 > 0 ? getAirQualityLevel(avgPm25) : '보통';
 
           return {
@@ -733,6 +827,10 @@ export async function loadIndicatorData(
             value: Math.round(avgPm25), // 주요 값은 PM2.5 평균으로 (지도 색상 표시용)
             pm10: Math.round(avgPm10 * 10) / 10, // 소수점 1자리
             pm25: Math.round(avgPm25 * 10) / 10, // 소수점 1자리
+            ozon: avgOzon !== undefined ? Math.round(avgOzon * 1000) / 1000 : undefined, // 소수점 3자리
+            no2: avgNo2 !== undefined ? Math.round(avgNo2 * 1000) / 1000 : undefined, // 소수점 3자리
+            co: avgCo !== undefined ? Math.round(avgCo * 10) / 10 : undefined, // 소수점 1자리
+            caiIndex: avgCai !== undefined ? Math.round(avgCai) : undefined, // 정수
             airQualityLevel,
             stationCount: data.stationCount
           };
