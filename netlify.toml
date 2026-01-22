@@ -7,9 +7,3 @@
 
 [build.environment]
   NODE_VERSION = "20"
-
-# Next.js redirects and rewrites
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/:splat"
-  status = 200
