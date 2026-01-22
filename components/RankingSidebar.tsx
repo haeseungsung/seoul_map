@@ -237,7 +237,7 @@ export default function RankingSidebar({
             <div className="flex items-center gap-1.5">
               <span className="text-base">📊</span>
               <h3 className="font-bold text-xs text-white">
-                {unit === '개' || unit === '명' ? '서울시 전체' : '서울시 평균'}
+                서울시 전체 구 평균
               </h3>
             </div>
           </div>
