@@ -284,6 +284,11 @@ export async function loadIndicatorData(
           value = item.count > 0 ? (item.activeCount / item.count) * 100 : 0;
           break;
 
+        case 'avg':
+          // 평균 = 합계 / 개수
+          value = item.areaCount > 0 ? item.areaSum / item.areaCount : 0;
+          break;
+
         default:
           value = item.count;
       }

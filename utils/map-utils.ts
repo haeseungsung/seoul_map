@@ -57,6 +57,19 @@ export function createQuantileStops(values: number[], unit: string): [number, st
     ];
   }
 
+  // ㎡ 단위는 보라색 계열
+  if (unit === '㎡') {
+    return [
+      [0, '#f3f4f6'],          // 데이터 없음
+      [min, '#faf5ff'],        // 최소값 (매우 연한 보라)
+      [q20, '#f3e8ff'],        // 20%
+      [q40, '#d8b4fe'],        // 40%
+      [q60, '#c084fc'],        // 60%
+      [q80, '#9333ea'],        // 80%
+      [max, '#7e22ce'],        // 최대값 (진한 보라)
+    ];
+  }
+
   // 기본: 단일 파란색 톤 그라데이션 (개수용)
   return [
     [0, '#e5e7eb'],          // 데이터 없음 (회색)
@@ -89,6 +102,10 @@ export function getIndicatorConfig(indicator: IndicatorType | string): Indicator
     // 영업률, 비율 등 → '%'
     if (indicatorId.includes('영업률') || indicatorId.includes('비율') || indicatorId.includes('률') || indicatorId.includes('_ratio')) {
       return '%';
+    }
+    // 평균면적 → '㎡'
+    if (indicatorId.includes('평균면적') || indicatorId.includes('avg_area') || indicatorId.includes('_avg')) {
+      return '㎡';
     }
     // 기본값
     return '개';
@@ -250,6 +267,26 @@ export function getIndicatorConfig(indicator: IndicatorType | string): Indicator
             [60, '#22c55e'],    // 60% - 진한 초록
             [70, '#16a34a'],    // 70% - 더 진한 초록
             [80, '#15803d'],    // 80%+ - 가장 진한 초록
+          ],
+        };
+      }
+
+      // ㎡ 단위는 보라색 계열 색상 사용
+      if (unit === '㎡') {
+        return {
+          property: indicator as string,
+          label: indicator as string,
+          unit: unit,
+          stops: [
+            [0, '#f3f4f6'],     // 0㎡ - 회색 (데이터 없음)
+            [1, '#faf5ff'],     // 최소값 - 매우 연한 보라
+            [20, '#f3e8ff'],    // 20㎡ - 연한 보라
+            [40, '#e9d5ff'],    // 40㎡ - 밝은 보라
+            [60, '#d8b4fe'],    // 60㎡ - 중간 보라
+            [80, '#c084fc'],    // 80㎡ - 보라
+            [100, '#a855f7'],   // 100㎡ - 진한 보라
+            [150, '#9333ea'],   // 150㎡ - 더 진한 보라
+            [200, '#7e22ce'],   // 200㎡+ - 가장 진한 보라
           ],
         };
       }

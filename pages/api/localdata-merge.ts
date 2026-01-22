@@ -180,16 +180,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const closedCount = result.data.filter((row: any) => row.TRDSTATEGBN === '03').length;
         const totalCount = result.data.length;
 
+        // 면적 합계 및 개수 (평균 계산용)
+        const areaSum = result.data.reduce((sum: number, row: any) => {
+          const area = parseFloat(row.SITEAREA) || 0;
+          return sum + (area > 0 ? area : 0);
+        }, 0);
+        const areaCount = result.data.filter((row: any) => {
+          const area = parseFloat(row.SITEAREA) || 0;
+          return area > 0;
+        }).length;
+
         return {
           gu: result.guName,
           count: totalCount,
           activeCount,
           closedCount,
+          areaSum,
+          areaCount,
           totalCount: result.totalCount,
         };
       });
 
-      console.log(`📊 집계 모드: 구별 개수 + 영업상태 반환 (${guAggregated.length}개 구)`);
+      console.log(`📊 집계 모드: 구별 개수 + 영업상태 + 면적 반환 (${guAggregated.length}개 구)`);
 
       return res.json({
         success: true,
