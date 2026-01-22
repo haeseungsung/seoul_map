@@ -1,5 +1,3 @@
 {
-  "buildCommand": "rm -rf .next && npm run build",
-  "cleanUrls": true,
-  "installCommand": "npm install"
+  "cleanUrls": true
 }
