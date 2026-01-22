@@ -3,7 +3,7 @@
  */
 
 import { IndicatorMetadata } from './indicator-loader';
-import { KNOWN_WORKING_APIS } from '@/pages/api/_known-apis';
+import { KNOWN_WORKING_APIS } from '@/utils/known-apis';
 
 export interface SeoulApiService {
   id: string;

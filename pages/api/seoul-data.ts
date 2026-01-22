@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import fs from 'fs';
 import path from 'path';
-import { KNOWN_WORKING_APIS } from './_known-apis';
+import { KNOWN_WORKING_APIS } from '@/utils/known-apis';
 
 /**
  * Next.js API Route - 서울 OpenAPI 데이터 가져오기
