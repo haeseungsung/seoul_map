@@ -25,3 +25,16 @@ body {
     text-wrap: balance;
   }
 }
+
+/* 로딩 바 애니메이션 */
+@keyframes loading {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}

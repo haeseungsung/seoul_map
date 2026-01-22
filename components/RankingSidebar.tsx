@@ -19,6 +19,7 @@ interface RankingSidebarProps {
   unit: string; // 단위 (예: "μg/m³", "명", "개")
   isAirQuality?: boolean; // 대기질 데이터인 경우 true (낮을수록 좋음)
   indicatorSelector?: ReactNode; // 지표 선택 UI
+  isLoading?: boolean; // 지표 로딩 중 여부
 }
 
 /**
@@ -32,7 +33,8 @@ export default function RankingSidebar({
   indicatorName,
   unit,
   isAirQuality = false,
-  indicatorSelector
+  indicatorSelector,
+  isLoading = false
 }: RankingSidebarProps) {
   // 대기질은 낮을수록 좋음, 나머지는 높을수록 좋음
   const sortedData = [...allGuData]
@@ -77,8 +79,44 @@ export default function RankingSidebar({
         <h2 className="text-lg font-bold text-white">{indicatorName} 순위</h2>
       </div>
 
+      {/* 로딩 상태 */}
+      {isLoading && (
+        <div className="flex-1 flex items-center justify-center bg-gray-900/50">
+          <div className="text-center px-6 py-8">
+            {/* 애니메이션 아이콘 */}
+            <div className="relative w-20 h-20 mx-auto mb-6">
+              {/* 외부 회전 링 */}
+              <div className="absolute inset-0 border-4 border-blue-500/30 rounded-full animate-spin"></div>
+              {/* 내부 회전 링 */}
+              <div className="absolute inset-2 border-4 border-t-blue-500 border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin" style={{ animationDuration: '0.8s' }}></div>
+              {/* 중앙 아이콘 */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <svg className="w-8 h-8 text-blue-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+            </div>
+
+            {/* 로딩 텍스트 */}
+            <div className="space-y-2">
+              <h3 className="text-xl font-bold text-white">지표 데이터 로딩 중</h3>
+              <p className="text-sm text-gray-400">
+                서울 열린데이터광장에서<br />
+                데이터를 불러오고 있습니다
+              </p>
+            </div>
+
+            {/* 로딩 바 애니메이션 */}
+            <div className="mt-6 w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full animate-[loading_1.5s_ease-in-out_infinite]"></div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 스크롤 가능한 콘텐츠 영역 */}
-      <div className="flex-1 overflow-y-auto py-3 space-y-2.5">
+      {!isLoading && (
+        <div className="flex-1 overflow-y-auto py-3 space-y-2.5">
         {/* TOP 3 */}
         <div className="bg-gradient-to-br from-blue-900/30 to-gray-800/50 border border-blue-800/50 overflow-hidden">
           <div className="bg-gradient-to-r from-blue-600 to-blue-500 px-3 py-1.5">
@@ -193,6 +231,7 @@ export default function RankingSidebar({
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }

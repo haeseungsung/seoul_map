@@ -435,6 +435,7 @@ export default function Home() {
               indicatorName="PM2.5"
               unit="μg/m³"
               isAirQuality={true}
+              isLoading={isLoadingGuIndicator}
               indicatorSelector={
                 <HierarchicalIndicatorSelector
                   onIndicatorSelect={handleGuIndicatorSelect}
@@ -483,6 +484,7 @@ export default function Home() {
             indicatorName={selectedGuIndicator.indicator_name}
             unit={getUnit()}
             isAirQuality={false}
+            isLoading={isLoadingGuIndicator}
             indicatorSelector={
               <HierarchicalIndicatorSelector
                 onIndicatorSelect={handleGuIndicatorSelect}
