@@ -399,27 +399,30 @@ export default function Home() {
       <OnboardingTour isActive={showOnboarding} onComplete={handleOnboardingComplete} />
 
       {/* RankingSidebar - 모든 구 단위 지표에 대한 TOP 3 / BOTTOM 3 */}
-      {guGeojsonData && viewMode === 'gu' && selectedGuIndicator && (() => {
+      {viewMode === 'gu' && selectedGuIndicator && (() => {
         const isAirQuality = selectedGuIndicator.indicator_id.includes('환경_정보');
         const indicatorId = selectedGuIndicator.indicator_id;
 
         // 대기질 데이터인 경우
         if (isAirQuality) {
           const excludedGu = ['은평구', '송파구', '구로구']; // 데이터 없는 구
-          const allGuData = guGeojsonData.features
-            .filter((f: any) => {
-              const guName = f.properties.gu_name || f.properties.SIG_KOR_NM || '';
-              return f.properties?.pm25 !== undefined &&
-                     f.properties?.pm25 > 0 &&
-                     !excludedGu.includes(guName);
-            })
-            .map((f: any) => ({
-              gu_name: f.properties.gu_name || f.properties.SIG_KOR_NM || '',
-              value: f.properties.pm25 || 0,
-              displayValue: f.properties.airQualityLevel || '보통',
-            }));
+          const allGuData = guGeojsonData?.features
+            ? guGeojsonData.features
+                .filter((f: any) => {
+                  const guName = f.properties.gu_name || f.properties.SIG_KOR_NM || '';
+                  return f.properties?.pm25 !== undefined &&
+                         f.properties?.pm25 > 0 &&
+                         !excludedGu.includes(guName);
+                })
+                .map((f: any) => ({
+                  gu_name: f.properties.gu_name || f.properties.SIG_KOR_NM || '',
+                  value: f.properties.pm25 || 0,
+                  displayValue: f.properties.airQualityLevel || '보통',
+                }))
+            : [];
 
           const handleGuClick = (guName: string) => {
+            if (!guGeojsonData) return;
             const feature = guGeojsonData.features.find(
               (f: any) => f.properties?.gu_name === guName || f.properties?.SIG_KOR_NM === guName
             );
@@ -448,16 +451,20 @@ export default function Home() {
         }
 
         // 일반 지표 데이터 (생활인구, 업종 등)
-        const allGuData = guGeojsonData.features
-          .filter((f: any) => f.properties?.[indicatorId] !== undefined && f.properties?.[indicatorId] > 0)
-          .map((f: any) => ({
-            gu_name: f.properties.gu_name || f.properties.SIG_KOR_NM || '',
-            value: f.properties[indicatorId] || 0,
-          }));
+        const allGuData = guGeojsonData?.features
+          ? guGeojsonData.features
+              .filter((f: any) => f.properties?.[indicatorId] !== undefined && f.properties?.[indicatorId] > 0)
+              .map((f: any) => ({
+                gu_name: f.properties.gu_name || f.properties.SIG_KOR_NM || '',
+                value: f.properties[indicatorId] || 0,
+              }))
+          : [];
 
-        if (allGuData.length === 0) return null;
+        // 로딩 중이 아닌데 데이터가 없으면 null 반환
+        if (allGuData.length === 0 && !isLoadingGuIndicator) return null;
 
         const handleGuClick = (guName: string) => {
+          if (!guGeojsonData) return;
           const feature = guGeojsonData.features.find(
             (f: any) => f.properties?.gu_name === guName || f.properties?.SIG_KOR_NM === guName
           );
