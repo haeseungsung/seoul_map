@@ -117,6 +117,8 @@ export default function HierarchicalIndicatorSelector({
         console.log(`   - Dong 레벨: ${dongTopics.length}개`);
       } catch (error) {
         console.error('❌ 카탈로그 로드 실패:', error);
+        console.error('에러 상세:', error instanceof Error ? error.message : String(error));
+        console.error('에러 스택:', error instanceof Error ? error.stack : '');
         setIsLoading(false);
       }
     };
