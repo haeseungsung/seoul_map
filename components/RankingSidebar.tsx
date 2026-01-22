@@ -181,7 +181,7 @@ export default function RankingSidebar({
                 </div>
                 <div className="flex items-center justify-end mt-1">
                   <span className="text-sm font-bold text-blue-400">
-                    {unit === '개' || unit === '명' ? item.value.toLocaleString() : (item.value >= 1000 ? item.value.toLocaleString() : item.value.toFixed(1))}
+                    {unit === '개' || unit === '명' ? item.value.toLocaleString() : item.value.toFixed(1)}
                     <span className="text-xs text-gray-500 ml-1">{unit}</span>
                   </span>
                 </div>
@@ -222,7 +222,7 @@ export default function RankingSidebar({
                 </div>
                 <div className="flex items-center justify-end mt-1">
                   <span className="text-sm font-bold text-red-400">
-                    {unit === '개' || unit === '명' ? item.value.toLocaleString() : (item.value >= 1000 ? item.value.toLocaleString() : item.value.toFixed(1))}
+                    {unit === '개' || unit === '명' ? item.value.toLocaleString() : item.value.toFixed(1)}
                     <span className="text-xs text-gray-500 ml-1">{unit}</span>
                   </span>
                 </div>
@@ -248,13 +248,13 @@ export default function RankingSidebar({
               </span>
               <span className="text-base font-bold text-purple-400">
                 {(() => {
-                  // 개수나 명수는 합계, 나머지(%, μg/m³ 등)는 평균
+                  // 개수나 명수는 합계, 나머지(%, μg/m³, ㎡ 등)는 평균
                   if (unit === '개' || unit === '명') {
                     const total = allGuData.reduce((sum, g) => sum + g.value, 0);
                     return total.toLocaleString();
                   } else {
                     const avg = allGuData.reduce((sum, g) => sum + g.value, 0) / allGuData.filter(g => g.value > 0).length;
-                    return avg >= 1000 ? avg.toLocaleString() : avg.toFixed(1);
+                    return avg.toFixed(1);
                   }
                 })()}
                 <span className="text-xs text-gray-500 ml-1">{unit}</span>

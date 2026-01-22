@@ -493,6 +493,9 @@ export default function Home() {
           if (selectedGuIndicator.indicator_name.includes('영업률') || selectedGuIndicator.indicator_name.includes('비율') || selectedGuIndicator.indicator_name.includes('률')) {
             return '%';
           }
+          if (selectedGuIndicator.indicator_name.includes('평균면적') || selectedGuIndicator.indicator_name.includes('면적')) {
+            return '㎡';
+          }
           return '개';
         };
 
@@ -663,6 +666,9 @@ export default function Home() {
           }
           if (selectedGuIndicator.indicator_name.includes('영업률') || selectedGuIndicator.indicator_name.includes('비율') || selectedGuIndicator.indicator_name.includes('률')) {
             return '%';
+          }
+          if (selectedGuIndicator.indicator_name.includes('평균면적') || selectedGuIndicator.indicator_name.includes('면적')) {
+            return '㎡';
           }
           return '개';
         };
