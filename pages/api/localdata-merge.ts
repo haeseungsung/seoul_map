@@ -174,13 +174,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // 집계 모드: 구별 개수만 반환 (응답 크기 최소화)
     if (aggregate) {
-      const guAggregated = results.map((result) => ({
-        gu: result.guName,
-        count: result.data.length,
-        totalCount: result.totalCount,
-      }));
+      const guAggregated = results.map((result) => {
+        // 영업 상태별 개수 계산
+        const activeCount = result.data.filter((row: any) => row.TRDSTATEGBN === '01').length;
+        const closedCount = result.data.filter((row: any) => row.TRDSTATEGBN === '03').length;
+        const totalCount = result.data.length;
 
-      console.log(`📊 집계 모드: 구별 개수만 반환 (${guAggregated.length}개 구)`);
+        return {
+          gu: result.guName,
+          count: totalCount,
+          activeCount,
+          closedCount,
+          totalCount: result.totalCount,
+        };
+      });
+
+      console.log(`📊 집계 모드: 구별 개수 + 영업상태 반환 (${guAggregated.length}개 구)`);
 
       return res.json({
         success: true,

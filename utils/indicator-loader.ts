@@ -262,12 +262,39 @@ export async function loadIndicatorData(
     console.log(`✅ API 응답: ${result.data.length}개 구 집계 데이터`);
 
     // 집계된 데이터를 IndicatorValue 형식으로 변환
-    const indicatorValues: IndicatorValue[] = result.data.map((item: any) => ({
-      gu: item.gu,
-      value: item.count,
-    }));
+    // aggregation_method에 따라 값 계산
+    const indicatorValues: IndicatorValue[] = result.data.map((item: any) => {
+      let value = 0;
 
-    console.log(`✅ 구별 데이터 변환 완료:`, indicatorValues);
+      switch (metadata.aggregation_method) {
+        case 'count':
+          value = item.count; // 전체 개수
+          break;
+
+        case 'count_active':
+          value = item.activeCount; // 영업중 개수
+          break;
+
+        case 'count_closed':
+          value = item.closedCount; // 폐업 개수
+          break;
+
+        case 'active_ratio':
+          // 영업률 (%) = (영업중 / 전체) * 100
+          value = item.count > 0 ? (item.activeCount / item.count) * 100 : 0;
+          break;
+
+        default:
+          value = item.count;
+      }
+
+      return {
+        gu: item.gu,
+        value,
+      };
+    });
+
+    console.log(`✅ 구별 데이터 변환 완료 (${metadata.aggregation_method}):`, indicatorValues.slice(0, 3));
 
     return indicatorValues;
   }
