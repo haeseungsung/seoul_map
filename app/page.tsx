@@ -400,6 +400,13 @@ export default function Home() {
 
       {/* RankingSidebar - 모든 구 단위 지표에 대한 TOP 3 / BOTTOM 3 */}
       {viewMode === 'gu' && selectedGuIndicator && (() => {
+        console.log('🎯 RankingSidebar 렌더링 조건 확인:', {
+          viewMode,
+          selectedGuIndicator: selectedGuIndicator?.indicator_id,
+          isLoadingGuIndicator,
+          hasGuGeojsonData: !!guGeojsonData
+        });
+
         const isAirQuality = selectedGuIndicator.indicator_id.includes('환경_정보');
         const indicatorId = selectedGuIndicator.indicator_id;
 
