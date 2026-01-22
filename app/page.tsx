@@ -59,6 +59,7 @@ export default function Home() {
   const [isLoadingGuIndicator, setIsLoadingGuIndicator] = useState(false);
   const [guGeojsonData, setGuGeojsonData] = useState<any>(null); // 구 GeoJSON (지표 데이터 병합됨)
   const [baseGuGeojsonData, setBaseGuGeojsonData] = useState<any>(null); // 원본 구 GeoJSON
+  const [indicatorLoadError, setIndicatorLoadError] = useState<string | null>(null); // 지표 로드 에러
 
   // 시 전체 모드 state
   const [cityData, setCityData] = useState<{ value: number; description: string; totalRows?: number } | null>(null);
@@ -139,6 +140,7 @@ export default function Home() {
   const handleGuIndicatorSelect = async (indicator: IndicatorMetadata) => {
     setSelectedGuIndicator(indicator);
     setIsLoadingGuIndicator(true);
+    setIndicatorLoadError(null); // 에러 초기화
 
     try {
       console.log('📊 지표 로드:', indicator.indicator_name, '(spatial_grain:', indicator.spatial_grain + ')');
@@ -263,7 +265,9 @@ export default function Home() {
       console.log(`   - ${indicator.indicator_id} 값:`, mergedGuGeojson.features[0]?.properties?.[indicator.indicator_id]);
     } catch (error) {
       console.error('❌ 지표 로드 실패:', error);
-      alert(`지표 로드 실패:\n${error instanceof Error ? error.message : String(error)}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      setIndicatorLoadError(errorMessage);
+      alert(`지표 로드 실패:\n${errorMessage}`);
     } finally {
       setIsLoadingGuIndicator(false);
     }
@@ -446,6 +450,7 @@ export default function Home() {
               unit="μg/m³"
               isAirQuality={true}
               isLoading={isLoadingGuIndicator}
+              error={indicatorLoadError}
               indicatorSelector={
                 <HierarchicalIndicatorSelector
                   onIndicatorSelect={handleGuIndicatorSelect}
@@ -499,6 +504,7 @@ export default function Home() {
             unit={getUnit()}
             isAirQuality={false}
             isLoading={isLoadingGuIndicator}
+            error={indicatorLoadError}
             indicatorSelector={
               <HierarchicalIndicatorSelector
                 onIndicatorSelect={handleGuIndicatorSelect}

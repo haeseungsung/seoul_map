@@ -20,6 +20,7 @@ interface RankingSidebarProps {
   isAirQuality?: boolean; // 대기질 데이터인 경우 true (낮을수록 좋음)
   indicatorSelector?: ReactNode; // 지표 선택 UI
   isLoading?: boolean; // 지표 로딩 중 여부
+  error?: string | null; // 에러 메시지
 }
 
 /**
@@ -34,7 +35,8 @@ export default function RankingSidebar({
   unit,
   isAirQuality = false,
   indicatorSelector,
-  isLoading = false
+  isLoading = false,
+  error = null
 }: RankingSidebarProps) {
   // 대기질은 낮을수록 좋음, 나머지는 높을수록 좋음
   const sortedData = [...allGuData]
@@ -78,6 +80,36 @@ export default function RankingSidebar({
       <div className="flex-shrink-0 px-3 py-2 border-b border-gray-800">
         <h2 className="text-lg font-bold text-white">{indicatorName} 순위</h2>
       </div>
+
+      {/* 에러 상태 */}
+      {error && !isLoading && (
+        <div className="flex-1 flex items-center justify-center bg-gray-900/50">
+          <div className="text-center px-6 py-8">
+            {/* 에러 아이콘 */}
+            <div className="w-20 h-20 mx-auto mb-6">
+              <svg className="w-full h-full text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+
+            {/* 에러 메시지 */}
+            <div className="space-y-3">
+              <h3 className="text-xl font-bold text-red-400">지표 로드 실패</h3>
+              <p className="text-sm text-gray-400">
+                데이터를 불러오는 중 오류가 발생했습니다
+              </p>
+              <div className="bg-red-900/20 border border-red-800/30 rounded-lg p-3 mt-4">
+                <p className="text-xs text-red-300 break-words">
+                  {error}
+                </p>
+              </div>
+              <p className="text-xs text-gray-500 mt-4">
+                다른 지표를 선택해보세요
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 로딩 상태 */}
       {isLoading && (
