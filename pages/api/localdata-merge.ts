@@ -127,6 +127,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
   const query = req.query;
   const industryCode = query.industryCode as string;
+  const aggregate = query.aggregate === 'true'; // 집계 모드: 구별 개수만 반환
 
   if (!industryCode) {
     return res.status(400).json({ success: false, error: 'industryCode 파라미터가 필요합니다' });
@@ -171,6 +172,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     console.log(`✅ 병합 완료: ${summary.totalRecords}건 (${summary.guCount}/25 구)`);
 
+    // 집계 모드: 구별 개수만 반환 (응답 크기 최소화)
+    if (aggregate) {
+      const guAggregated = results.map((result) => ({
+        gu: result.guName,
+        count: result.data.length,
+        totalCount: result.totalCount,
+      }));
+
+      console.log(`📊 집계 모드: 구별 개수만 반환 (${guAggregated.length}개 구)`);
+
+      return res.json({
+        success: true,
+        industryCode,
+        data: guAggregated,
+        summary,
+      });
+    }
+
+    // 전체 모드: 모든 데이터 반환 (4MB 초과 경고)
     return res.json({
       success: true,
       industryCode,

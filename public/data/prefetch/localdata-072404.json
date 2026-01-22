@@ -1,0 +1,13 @@
+{
+  "success": true,
+  "data": [],
+  "summary": {
+    "industryCode": "072404",
+    "industryName": "일반음식점",
+    "totalRecords": 0,
+    "guCount": 0,
+    "guList": [],
+    "errors": [],
+    "fetchedAt": "2026-01-22T05:05:12.103Z"
+  }
+}

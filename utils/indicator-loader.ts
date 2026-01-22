@@ -242,7 +242,8 @@ export async function loadIndicatorData(
     console.log(`   - 집계 방식: ${metadata.aggregation_method || 'count'}`);
 
     // LOCALDATA API는 25개 구를 병합해야 함
-    const apiUrl = `/api/localdata-merge?industryCode=${industryCode}`;
+    // aggregate=true로 구별 집계 결과만 받아서 응답 크기 최소화 (4MB 초과 방지)
+    const apiUrl = `/api/localdata-merge?industryCode=${industryCode}&aggregate=true`;
     console.log(`   - API URL: ${apiUrl}`);
 
     const response = await fetch(apiUrl);
@@ -258,12 +259,15 @@ export async function loadIndicatorData(
       throw new Error(result.error || `Failed to load ${metadata.indicator_name}`);
     }
 
-    console.log(`✅ API 응답: ${result.data.length}건 (${result.summary.guCount}개 구)`);
+    console.log(`✅ API 응답: ${result.data.length}개 구 집계 데이터`);
 
-    // 구별로 집계 (새로운 집계 함수 사용)
-    const indicatorValues = aggregateByGu(result.data, metadata);
+    // 집계된 데이터를 IndicatorValue 형식으로 변환
+    const indicatorValues: IndicatorValue[] = result.data.map((item: any) => ({
+      gu: item.gu,
+      value: item.count,
+    }));
 
-    console.log(`✅ 구별 집계 완료:`, indicatorValues);
+    console.log(`✅ 구별 데이터 변환 완료:`, indicatorValues);
 
     return indicatorValues;
   }
