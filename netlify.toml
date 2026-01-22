@@ -13,6 +13,4 @@
   # 서버리스 함수 타임아웃을 26초로 설정 (기본값 10초)
   # LOCALDATA API는 25개 구 데이터를 수집하므로 시간이 오래 걸림
   node_bundler = "esbuild"
-
-[[functions."*"]]
-  timeout = 26
+  external_node_modules = ["next"]
