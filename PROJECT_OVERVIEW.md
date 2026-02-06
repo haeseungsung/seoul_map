@@ -114,6 +114,12 @@ LOCALDATA_[업종코드]_[구코드]
    → rows에서 MSRSTN_NM 필드로 구 이름 추출
    → [{ gu: "강남구", value: 23 }, ...]
 
+3-D. WELFARE 패턴인 경우 (복지시설):
+   → /api/welfare-aggregate?facilityType=노인복지시설
+   → 25개 구의 fcltOpenInfo_{구코드} API 호출
+   → FCLT_KIND_NM 필드를 파싱하여 종류별 집계
+   → [{ gu: "강남구", value: 45 }, ...]
+
 4. MapContainer
    ↓ GeoJSON과 병합
 
@@ -155,8 +161,9 @@ entityType (엔티티 타입)
 - **page.tsx**: 메인 페이지 (모드 전환 등)
 
 #### Backend API Routes
-- **app/api/seoul-data/route.ts**: 서울시 OpenAPI 프록시 (XML 파싱 포함)
-- **app/api/localdata-merge/route.ts**: LOCALDATA 25개 구 통합 호출
+- **pages/api/seoul-data.ts**: 서울시 OpenAPI 프록시 (XML 파싱 포함)
+- **pages/api/localdata-merge.ts**: LOCALDATA 25개 구 통합 호출
+- **pages/api/welfare-aggregate.ts**: 복지시설 25개 구 통합 + 종류별 집계
 - **app/api/aggregate-gu-data/route.ts**: 구별 데이터 집계
 
 #### Utilities
@@ -176,6 +183,7 @@ entityType (엔티티 타입)
 | 패턴 | API 호출 횟수 | 데이터 추출 방식 | 예시 |
 |------|--------------|----------------|------|
 | **LOCALDATA** | 25번 (병합됨) | `aggregateByGu()` | 병원, 음식점, 약국 |
+| **WELFARE** | 25번 (병합됨) | `FCLT_KIND_NM` 파싱 + 종류별 집계 | 노인/아동/장애인 복지시설 |
 | **MULTI_GU** | 25번 (개별) | 각 응답의 `totalCount` | 문화행사, 주차장 |
 | **Single API** | 1번 | rows의 `MSRSTN_NM` 필드 | 실시간 대기환경 |
 | **CSV** | 0번 (파일 읽기) | CSV 파싱 | 유통전문판매업 |

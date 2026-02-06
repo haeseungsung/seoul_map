@@ -117,6 +117,12 @@ seoul/
 - 행정동 레벨
 - `public/data/indicator-catalog.csv`
 
+### 4. 복지시설 (WELFARE)
+- 사회복지시설 종류별 집계
+- 노인/아동/장애인/정신보건/여성/일반사회 복지시설
+- 25개 구별 실시간 API 호출 + 종류별 분류
+- API 엔드포인트: `/api/welfare-aggregate`
+
 ---
 
 ## 🔍 API 테스트

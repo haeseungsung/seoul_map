@@ -118,6 +118,7 @@ function extractEntityType(name: string): string {
     '대기오염': ['대기오염', '대기환경', '미세먼지', '초미세먼지', '오존', '이산화질소'],
     '와이파이': ['공공와이파이', '와이파이', 'WiFi', 'wifi'],
     'CCTV': ['CCTV', '안심이', 'cctv'],
+    '번호판영치': ['번호판 영치', '자동차 번호판 영치', '영치'],
     '생활인구': ['생활인구'],
     '통계': ['통계', '조사'],
     // 문화/관광 관련 entity 추가
@@ -188,6 +189,7 @@ function normalizeMapCategory(category: string): string {
     '산업/경제': '산업경제',
     '산업': '산업경제',
     '경제': '산업경제',
+    '복지': '복지시설',
   };
   return categoryMap[category] || category;
 }
@@ -220,6 +222,18 @@ export function groupApisByTopic(apiCatalog: SeoulApiService[]): IndicatorTopic[
 
     // 제외 대상 엔티티 타입이면 스킵
     if (excludedEntityTypes.includes(entityType)) {
+      return;
+    }
+
+    // 문화관광 > 정보 카테고리 제외 (Seoul API에서 ERROR-500 반환)
+    if (mapCategory === '문화관광' && taskType === '정보') {
+      console.log(`⏭️  문화관광 > 정보 제외: ${api.name} (${api.id})`);
+      return;
+    }
+
+    // 복지시설 > 정보 카테고리 제외 (WELFARE 지표로 대체됨)
+    if (mapCategory === '복지시설' && taskType === '정보') {
+      console.log(`⏭️  복지시설 > 정보 제외 (WELFARE 지표 사용): ${api.name} (${api.id})`);
       return;
     }
 
@@ -326,10 +340,15 @@ export function groupApisByTopic(apiCatalog: SeoulApiService[]): IndicatorTopic[
           cleanDescription = cleanDescription.replace('측정정보', '측정 정보');
         }
 
+        // indicator_name에 "개수" 추가 (CCTV, 번호판영치 등)
+        const indicatorName = (entityType === 'CCTV' || entityType === '번호판영치')
+          ? `${entityType} 개수`
+          : entityType;
+
         subIndicators.push({
           family: mapCategory,
           indicator_id: `${mapCategory}_${taskType}_${entityType}_${api.id}`,
-          indicator_name: entityType,
+          indicator_name: indicatorName,
           metric_type: 'count' as const,
           spatial_grain: 'city',
           source_pattern: `CITY:${taskType} - ${entityType}`,
@@ -341,10 +360,14 @@ export function groupApisByTopic(apiCatalog: SeoulApiService[]): IndicatorTopic[
 
       // Dong-level API 처리
       dongApis.forEach(api => {
+        const indicatorName = (entityType === 'CCTV' || entityType === '번호판영치')
+          ? `${entityType} 개수`
+          : entityType;
+
         subIndicators.push({
           family: mapCategory,
           indicator_id: `${mapCategory}_${taskType}_${entityType}_${api.id}`,
-          indicator_name: entityType,
+          indicator_name: indicatorName,
           metric_type: 'count' as const,
           spatial_grain: 'dong',
           source_pattern: `MULTI_DONG:${taskType} - ${entityType}`,
@@ -356,10 +379,14 @@ export function groupApisByTopic(apiCatalog: SeoulApiService[]): IndicatorTopic[
 
       // Gu-level API 처리 (known API 중)
       guApis.forEach(api => {
+        const indicatorName = (entityType === 'CCTV' || entityType === '번호판영치')
+          ? `${entityType} 개수`
+          : entityType;
+
         subIndicators.push({
           family: mapCategory,
           indicator_id: `${mapCategory}_${taskType}_${entityType}_${api.id}`,
-          indicator_name: entityType,
+          indicator_name: indicatorName,
           metric_type: 'count' as const,
           spatial_grain: 'gu',
           source_pattern: `MULTI_GU:${taskType} - ${entityType}`,
@@ -382,10 +409,14 @@ export function groupApisByTopic(apiCatalog: SeoulApiService[]): IndicatorTopic[
         console.log(`✅ 구별 지표 생성: ${mapCategory}/${taskType}/${entityType} (${unknownApis.length}개 API)`);
         console.log(`   - 구 매핑 샘플 (처음 3개):`, guApiMapping.slice(0, 3));
 
+        const indicatorName = (entityType === 'CCTV' || entityType === '번호판영치')
+          ? `${entityType} 개수`
+          : entityType;
+
         subIndicators.push({
           family: mapCategory,
           indicator_id: `${mapCategory}_${taskType}_${entityType}`,
-          indicator_name: entityType,
+          indicator_name: indicatorName,
           metric_type: 'count' as const,
           spatial_grain: 'gu',
           source_pattern: `MULTI_GU:${taskType} - ${entityType}`,

@@ -232,6 +232,68 @@ export async function loadIndicatorData(
     }
   }
 
+  // 복지시설 데이터 (WELFARE_AGGREGATE 패턴)
+  if (family === 'WELFARE' && source_pattern === 'WELFARE_AGGREGATE') {
+    console.log(`📊 복지시설 지표 로드: ${metadata.indicator_name}`);
+    console.log(`   - 집계 방식: ${metadata.aggregation_method}`);
+    console.log(`   - 필터: ${metadata.filter_condition || '없음'}`);
+
+    // 특정 종류만 필터링할지 결정
+    const facilityType = metadata.filter_condition || undefined;
+    const apiUrl = facilityType
+      ? `/api/welfare-aggregate?facilityType=${facilityType}`
+      : `/api/welfare-aggregate`;
+
+    console.log(`   - API URL: ${apiUrl}`);
+
+    const response = await fetch(apiUrl);
+    const result = await response.json();
+
+    console.log(`   - API 응답 상태:`, result.success);
+
+    if (!result.success) {
+      console.error(`   ❌ API 에러:`, result.error);
+      throw new Error(result.error || `Failed to load ${metadata.indicator_name}`);
+    }
+
+    // 특정 종류 필터링된 경우
+    if (result.facilityType) {
+      console.log(`✅ API 응답: ${result.data.length}개 구 (${result.facilityType})`);
+      return result.data.map((item: any) => ({
+        gu: item.gu,
+        value: item.count,
+      }));
+    }
+
+    // 전체 데이터인 경우, aggregation_method에 따라 값 추출
+    console.log(`✅ API 응답: ${result.data.length}개 구 집계 데이터`);
+
+    const indicatorValues: IndicatorValue[] = result.data.map((item: any) => {
+      let value = 0;
+
+      switch (metadata.aggregation_method) {
+        case 'welfare_count':
+          value = item.total; // 전체 복지시설
+          break;
+        case 'welfare_type':
+          // filter_condition에 지정된 종류의 개수
+          const fieldName = metadata.filter_condition as keyof typeof item;
+          value = item[fieldName] || 0;
+          break;
+        default:
+          value = item.total;
+      }
+
+      return {
+        gu: item.gu,
+        value,
+      };
+    });
+
+    console.log(`✅ 구별 데이터 변환 완료 (${metadata.aggregation_method}):`, indicatorValues.slice(0, 3));
+    return indicatorValues;
+  }
+
   if (family === 'LOCALDATA') {
     // LOCALDATA_072217_* 패턴에서 업종 코드 추출
     // 예: LOCALDATA_072217_* → 072217

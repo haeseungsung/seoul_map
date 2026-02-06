@@ -101,6 +101,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         apiUrl = `http://openapi.seoul.go.kr:8088/${API_KEY}/xml/tbLnOpendataService/${start}/${end}/${serviceId}/`;
         console.log('⚠️  구 이름 추출 실패, tbLnOpendataService (XML) 시도');
       }
+    } else if (serviceInfo.name.includes('CCTV') && serviceInfo.name.includes('불법주정차')) {
+      // CCTV API: TbOpendataFixedcctv{구코드} 패턴 (XML)
+      const guMatch = serviceInfo.name.match(/서울시\s+(\S+구)/);
+      if (guMatch) {
+        const guName = guMatch[1];
+        const guCode = GU_CODE_MAP[guName];
+        if (guCode) {
+          apiUrl = `http://openapi.seoul.go.kr:8088/${API_KEY}/xml/TbOpendataFixedcctv${guCode}/${start}/${end}/`;
+          console.log(`✅ CCTV API 발견 (XML): TbOpendataFixedcctv${guCode} (${guName})`);
+        } else {
+          // 구 코드를 찾지 못하면 fallback (XML)
+          apiUrl = `http://openapi.seoul.go.kr:8088/${API_KEY}/xml/tbLnOpendataService/${start}/${end}/${serviceId}/`;
+          console.log('⚠️  구 코드를 찾을 수 없음, tbLnOpendataService (XML) 시도');
+        }
+      } else {
+        apiUrl = `http://openapi.seoul.go.kr:8088/${API_KEY}/xml/tbLnOpendataService/${start}/${end}/${serviceId}/`;
+        console.log('⚠️  구 이름 추출 실패, tbLnOpendataService (XML) 시도');
+      }
+    } else if (serviceInfo.name.includes('번호판') && serviceInfo.name.includes('영치')) {
+      // 번호판 영치 API: TnCsdyPublicView{구코드} 패턴 (XML)
+      const guMatch = serviceInfo.name.match(/서울시\s+(\S+구)/);
+      if (guMatch) {
+        const guName = guMatch[1];
+        const guCode = GU_CODE_MAP[guName];
+        if (guCode) {
+          apiUrl = `http://openapi.seoul.go.kr:8088/${API_KEY}/xml/TnCsdyPublicView${guCode}/${start}/${end}/`;
+          console.log(`✅ 번호판 영치 API 발견 (XML): TnCsdyPublicView${guCode} (${guName})`);
+        } else {
+          // 구 코드를 찾지 못하면 fallback (XML)
+          apiUrl = `http://openapi.seoul.go.kr:8088/${API_KEY}/xml/tbLnOpendataService/${start}/${end}/${serviceId}/`;
+          console.log('⚠️  구 코드를 찾을 수 없음, tbLnOpendataService (XML) 시도');
+        }
+      } else {
+        apiUrl = `http://openapi.seoul.go.kr:8088/${API_KEY}/xml/tbLnOpendataService/${start}/${end}/${serviceId}/`;
+        console.log('⚠️  구 이름 추출 실패, tbLnOpendataService (XML) 시도');
+      }
     } else {
       // LOCALDATA 패턴 감지: "서울시 XX구 YYY 인허가 정보"
       const localdataMatch = serviceInfo.name.match(/서울시\s+(\S+구)\s+(.+?)\s+(인허가|정보|현황|목록)/);

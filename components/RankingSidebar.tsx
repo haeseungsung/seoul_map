@@ -77,9 +77,15 @@ export default function RankingSidebar({
       )}
 
       {/* 헤더 - 고정 */}
-      <div className="flex-shrink-0 px-3 py-2 border-b border-gray-800">
-        <h2 className="text-lg font-bold text-white">{indicatorName} 순위</h2>
-      </div>
+      {indicatorName ? (
+        <div className="flex-shrink-0 px-3 py-2 border-b border-gray-800">
+          <h2 className="text-lg font-bold text-white">{indicatorName} 순위</h2>
+        </div>
+      ) : (
+        <div className="flex-shrink-0 px-3 py-3 border-b border-gray-800">
+          <p className="text-sm text-gray-400">위에서 지표를 선택하세요</p>
+        </div>
+      )}
 
       {/* 에러 상태 */}
       {error && !isLoading && (
@@ -147,7 +153,21 @@ export default function RankingSidebar({
       )}
 
       {/* 스크롤 가능한 콘텐츠 영역 */}
-      {!isLoading && (
+      {!isLoading && !error && sortedData.length === 0 && (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center px-6 py-8">
+            <div className="w-16 h-16 mx-auto mb-4 text-gray-600">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <p className="text-sm text-gray-400">
+              {indicatorName ? '데이터를 불러오는 중이거나 해당 모드에서 순위를 지원하지 않습니다' : '지표를 선택하면 데이터가 표시됩니다'}
+            </p>
+          </div>
+        </div>
+      )}
+      {!isLoading && sortedData.length > 0 && (
         <div className="flex-1 overflow-y-auto py-3 space-y-2.5">
         {/* TOP 3 */}
         <div className="bg-gradient-to-br from-blue-900/30 to-gray-800/50 border border-blue-800/50 overflow-hidden">

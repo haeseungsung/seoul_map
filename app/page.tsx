@@ -127,6 +127,16 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode, baseGuGeojsonData]);
 
+  // viewMode 변경 시 선택된 지표 초기화 (다른 spatial_grain의 지표이면)
+  useEffect(() => {
+    if (selectedGuIndicator && selectedGuIndicator.spatial_grain !== viewMode) {
+      console.log(`🔄 viewMode 변경 (${viewMode}): 지표 초기화 (이전 지표: ${selectedGuIndicator.spatial_grain})`);
+      setSelectedGuIndicator(null);
+      setCityData(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode]);
+
   // 시간대 변경 시 생활인구 데이터 다시 로드
   useEffect(() => {
     if (selectedGuIndicator && isLivingPopulation(selectedGuIndicator)) {
@@ -402,20 +412,36 @@ export default function Home() {
       {/* 온보딩 투어 */}
       <OnboardingTour isActive={showOnboarding} onComplete={handleOnboardingComplete} />
 
-      {/* RankingSidebar - 모든 구 단위 지표에 대한 TOP 3 / BOTTOM 3 */}
-      {viewMode === 'gu' && selectedGuIndicator && (() => {
-        console.log('🎯 RankingSidebar 렌더링 조건 확인:', {
-          viewMode,
-          selectedGuIndicator: selectedGuIndicator?.indicator_id,
-          isLoadingGuIndicator,
-          hasGuGeojsonData: !!guGeojsonData
-        });
+      {/* RankingSidebar - 지표 선택 + 순위 표시 (모든 viewMode) */}
+      {(() => {
+        const indicatorSelectorNode = (
+          <HierarchicalIndicatorSelector
+            onIndicatorSelect={handleGuIndicatorSelect}
+            selectedIndicatorId={selectedGuIndicator?.indicator_id}
+            filterSpatialGrain={viewMode}
+          />
+        );
+
+        // 지표가 선택되지 않은 경우: 지표 선택기만 표시
+        if (!selectedGuIndicator) {
+          return (
+            <RankingSidebar
+              allGuData={[]}
+              onGuClick={() => {}}
+              indicatorName=""
+              unit=""
+              isLoading={isLoadingGuIndicator}
+              error={indicatorLoadError}
+              indicatorSelector={indicatorSelectorNode}
+            />
+          );
+        }
 
         const isAirQuality = selectedGuIndicator.indicator_id.includes('환경_정보');
         const indicatorId = selectedGuIndicator.indicator_id;
 
         // 대기질 데이터인 경우
-        if (isAirQuality) {
+        if (isAirQuality && viewMode === 'gu') {
           const excludedGu = ['은평구', '송파구', '구로구']; // 데이터 없는 구
           const allGuData = guGeojsonData?.features
             ? guGeojsonData.features
@@ -451,70 +477,70 @@ export default function Home() {
               isAirQuality={true}
               isLoading={isLoadingGuIndicator}
               error={indicatorLoadError}
-              indicatorSelector={
-                <HierarchicalIndicatorSelector
-                  onIndicatorSelect={handleGuIndicatorSelect}
-                  selectedIndicatorId={selectedGuIndicator?.indicator_id}
-                  filterSpatialGrain={viewMode}
-                />
-              }
+              indicatorSelector={indicatorSelectorNode}
             />
           );
         }
 
-        // 일반 지표 데이터 (생활인구, 업종 등)
-        const allGuData = guGeojsonData?.features
-          ? guGeojsonData.features
-              .filter((f: any) => f.properties?.[indicatorId] !== undefined && f.properties?.[indicatorId] > 0)
-              .map((f: any) => ({
-                gu_name: f.properties.gu_name || f.properties.SIG_KOR_NM || '',
-                value: f.properties[indicatorId] || 0,
-              }))
-          : [];
+        // 구 단위 일반 지표 데이터 (생활인구, 업종 등)
+        if (viewMode === 'gu') {
+          const allGuData = guGeojsonData?.features
+            ? guGeojsonData.features
+                .filter((f: any) => f.properties?.[indicatorId] !== undefined && f.properties?.[indicatorId] > 0)
+                .map((f: any) => ({
+                  gu_name: f.properties.gu_name || f.properties.SIG_KOR_NM || '',
+                  value: f.properties[indicatorId] || 0,
+                }))
+            : [];
 
-        // 로딩 중이 아닌데 데이터가 없으면 null 반환
-        if (allGuData.length === 0 && !isLoadingGuIndicator) return null;
+          const handleGuClick = (guName: string) => {
+            if (!guGeojsonData) return;
+            const feature = guGeojsonData.features.find(
+              (f: any) => f.properties?.gu_name === guName || f.properties?.SIG_KOR_NM === guName
+            );
+            if (feature) {
+              setSelectedDistrict(feature.properties);
+            }
+          };
 
-        const handleGuClick = (guName: string) => {
-          if (!guGeojsonData) return;
-          const feature = guGeojsonData.features.find(
-            (f: any) => f.properties?.gu_name === guName || f.properties?.SIG_KOR_NM === guName
+          // 단위 추출
+          const getUnit = () => {
+            if (selectedGuIndicator.indicator_name.includes('생활인구') || selectedGuIndicator.indicator_name.includes('인구')) {
+              return '명';
+            }
+            if (selectedGuIndicator.indicator_name.includes('영업률') || selectedGuIndicator.indicator_name.includes('비율') || selectedGuIndicator.indicator_name.includes('률')) {
+              return '%';
+            }
+            if (selectedGuIndicator.indicator_name.includes('평균면적') || selectedGuIndicator.indicator_name.includes('면적')) {
+              return '㎡';
+            }
+            return '개';
+          };
+
+          return (
+            <RankingSidebar
+              allGuData={allGuData}
+              onGuClick={handleGuClick}
+              indicatorName={selectedGuIndicator.indicator_name}
+              unit={getUnit()}
+              isAirQuality={false}
+              isLoading={isLoadingGuIndicator}
+              error={indicatorLoadError}
+              indicatorSelector={indicatorSelectorNode}
+            />
           );
-          if (feature) {
-            setSelectedDistrict(feature.properties);
-          }
-        };
+        }
 
-        // 단위 추출
-        const getUnit = () => {
-          if (selectedGuIndicator.indicator_name.includes('생활인구') || selectedGuIndicator.indicator_name.includes('인구')) {
-            return '명';
-          }
-          if (selectedGuIndicator.indicator_name.includes('영업률') || selectedGuIndicator.indicator_name.includes('비율') || selectedGuIndicator.indicator_name.includes('률')) {
-            return '%';
-          }
-          if (selectedGuIndicator.indicator_name.includes('평균면적') || selectedGuIndicator.indicator_name.includes('면적')) {
-            return '㎡';
-          }
-          return '개';
-        };
-
+        // dong/city 모드: 지표 선택기 + 로딩/결과 표시
         return (
           <RankingSidebar
-            allGuData={allGuData}
-            onGuClick={handleGuClick}
+            allGuData={[]}
+            onGuClick={() => {}}
             indicatorName={selectedGuIndicator.indicator_name}
-            unit={getUnit()}
-            isAirQuality={false}
+            unit=""
             isLoading={isLoadingGuIndicator}
             error={indicatorLoadError}
-            indicatorSelector={
-              <HierarchicalIndicatorSelector
-                onIndicatorSelect={handleGuIndicatorSelect}
-                selectedIndicatorId={selectedGuIndicator?.indicator_id}
-                filterSpatialGrain={viewMode}
-              />
-            }
+            indicatorSelector={indicatorSelectorNode}
           />
         );
       })()}
